@@ -2,128 +2,227 @@ const Fastify = require("fastify");
 const WebSocket = require("ws");
 
 const fastify = Fastify({ logger: false });
-const PORT = process.env.PORT || 3060;
+const PORT = process.env.PORT || 3003;
 
-let lastResults = [];
-let currentResult = null;
-let currentSession = null;
+let hitResults = [];
+let hitWS = null;
+let hitInterval = null;
 
-let ws = null;
-let reconnectInterval = 5000;
+function getTaiXiu(total) {
+  return total >= 11 ? "Tài" : "Xỉu";
+}
 
-function connectWebSocket() {
-  ws = new WebSocket("wss://websocket.atpman.net/websocket");
+function taiXiuStats(totalsList) {
+  const types = totalsList.map(getTaiXiu);
+  const count = types.reduce((acc, type) => {
+    acc[type] = (acc[type] || 0) + 1;
+    return acc;
+  }, {});
+  const counter = {};
+  totalsList.forEach(t => counter[t] = (counter[t] || 0) + 1);
+  const mostCommonTotal = Object.entries(counter).sort((a, b) => b[1] - a[1])[0][0];
+  const mostCommonType = (count["Tài"] || 0) >= (count["Xỉu"] || 0) ? "Tài" : "Xỉu";
+  return {
+    tai_count: count["Tài"] || 0,
+    xiu_count: count["Xỉu"] || 0,
+    most_common_total: Number(mostCommonTotal),
+    most_common_type: mostCommonType
+  };
+}
 
-  ws.on("open", () => {
-    console.log("✅ Đã kết nối WebSocket");
+function ruleSpecialPattern(last4) {
+  if (last4.length === 4 && last4[0] === last4[2] && last4[0] === last4[3] && last4[0] !== last4[1]) {
+    return {
+      prediction: "Tài",
+      confidence: 85,
+      reason: `Cầu đặc biệt ${last4.join("-")}. Bắt Tài theo công thức đặc biệt.`
+    };
+  }
+}
 
+function ruleSandwich(last3, lastResult) {
+  if (last3.length === 3 && last3[0] === last3[2] && last3[0] !== last3[1]) {
+    return {
+      prediction: lastResult === "Tài" ? "Xỉu" : "Tài",
+      confidence: 83,
+      reason: `Cầu sandwich ${last3.join("-")}. Bẻ cầu!`
+    };
+  }
+}
+
+function ruleSpecialNumbers(last3, lastResult) {
+  const special = new Set([7, 9, 10]);
+  const count = last3.filter(t => special.has(t)).length;
+  if (count >= 2) {
+    return {
+      prediction: lastResult === "Tài" ? "Xỉu" : "Tài",
+      confidence: 81,
+      reason: `Xuất hiện ≥2 số đặc biệt trong ${last3.join("-")}. Bẻ cầu!`
+    };
+  }
+}
+
+function ruleFrequentRepeat(last6, lastTotal) {
+  const count = last6.filter(t => t === lastTotal).length;
+  if (count >= 3) {
+    return {
+      prediction: getTaiXiu(lastTotal),
+      confidence: 80,
+      reason: `Số ${lastTotal} xuất hiện ${count} lần gần đây. Theo nghiêng cầu.`
+    };
+  }
+}
+
+function ruleRepeatPattern(last3, lastResult) {
+  if (last3.length === 3 && (last3[0] === last3[2] || last3[1] === last3[2])) {
+    return {
+      prediction: lastResult === "Tài" ? "Xỉu" : "Tài",
+      confidence: 77,
+      reason: `Cầu lặp dạng ${last3.join("-")}. Bẻ cầu A-B-B hoặc A-B-A.`
+    };
+  }
+}
+
+function ruleDefault(lastResult) {
+  return {
+    prediction: lastResult === "Tài" ? "Xỉu" : "Tài",
+    confidence: 71,
+    reason: "Không có cầu đặc biệt. Bẻ cầu mặc định theo 1-1."
+  };
+}
+
+function duDoanSunwin200kVip(totalsList) {
+  if (totalsList.length < 4) {
+    return {
+      prediction: "Chờ",
+      confidence: 0,
+      reason: "Chưa đủ dữ liệu (>=4 phiên)",
+      history_summary: taiXiuStats(totalsList)
+    };
+  }
+
+  const last4 = totalsList.slice(-4);
+  const last3 = totalsList.slice(-3);
+  const last6 = totalsList.slice(-6);
+  const lastTotal = totalsList[totalsList.length - 1];
+  const lastResult = getTaiXiu(lastTotal);
+
+  const rules = [
+    () => ruleSpecialPattern(last4),
+    () => ruleSandwich(last3, lastResult),
+    () => ruleSpecialNumbers(last3, lastResult),
+    () => ruleFrequentRepeat(last6, lastTotal),
+    () => ruleRepeatPattern(last3, lastResult)
+  ];
+
+  for (let rule of rules) {
+    const result = rule();
+    if (result) {
+      result.history_summary = taiXiuStats(totalsList);
+      return result;
+    }
+  }
+
+  const result = ruleDefault(lastResult);
+  result.history_summary = taiXiuStats(totalsList);
+  return result;
+}
+
+// === WebSocket connect ===
+function connectHitWebSocket() {
+  hitWS = new WebSocket("wss://mynygwais.hytsocesk.com/websocket");
+
+  hitWS.on("open", () => {
     const authPayload = [
       1,
       "MiniGame",
-      "banohu1",
-      "ba2007ok",
+      "",
+      "",
       {
-        info: "{\"ipAddress\":\"2a09:bac5:d46e:18be::277:9a\",\"userId\":\"daf3a573-8ac5-4db4-9717-256b848044af\",\"username\":\"S8_miss88\",\"timestamp\":1750747055128,\"refreshToken\":\"39d76d58fc7e4b819e097764af7240c8.34dcc325f1fc4e758e832c8f7a960224\"}"
-        signature: "63FA77AC775575BEBDEE05B1AA40767B969837517537E42026A4F7F25E4392710E640E5465AA3A0D884757E691BC8F31198B599348FB4F842C1689E7AA157A04BDF8888D8B680CC60C0CA6A414BA74E458754B527E77E11AAF74A36522C0069705B6FED6FA985C9E15C842821E6BE4DBC5B34D79DB60E5B825B4F51759B27ADA"
-      }
+        agentId: "1",
+        accessToken: "1-57106ebb5604b604753fc5edaf8478df",
+        reconnect: true,
+      },
     ];
+    hitWS.send(JSON.stringify(authPayload));
 
-    ws.send(JSON.stringify(authPayload));
-    console.log("🔐 Đã gửi payload xác thực");
-
-    // Gửi lệnh lấy kết quả xúc xắc sau 2 giây
-    setTimeout(() => {
-      const dicePayload = [
-        6,
-        "MiniGame",
-        "taixiuUnbalancedPlugin",
-        { cmd: 2000 }
-      ];
-      ws.send(JSON.stringify(dicePayload));
-      console.log("🎲 Đã gửi lệnh lấy kết quả xúc xắc (cmd: 2000)");
-    }, 2000);
+    clearInterval(hitInterval);
+    hitInterval = setInterval(() => {
+      const payload = [6, "MiniGame", "taixiuPlugin", { cmd: 1005 }];
+      hitWS.send(JSON.stringify(payload));
+    }, 5000);
   });
 
-  ws.on("message", (data) => {
+  hitWS.on("message", (data) => {
     try {
       const json = JSON.parse(data);
       if (Array.isArray(json) && json[1]?.htr) {
-        lastResults = json[1].htr.map(item => ({
+        hitResults = json[1].htr.map((item) => ({
           sid: item.sid,
           d1: item.d1,
           d2: item.d2,
-          d3: item.d3
+          d3: item.d3,
         }));
-
-        const latest = lastResults[0];
-        const total = latest.d1 + latest.d2 + latest.d3;
-        currentResult = total >= 11 ? "Tài" : "Xỉu";
-        currentSession = latest.sid;
-
-        console.log(📥 Phiên ${currentSession}: ${latest.d1} + ${latest.d2} + ${latest.d3} = ${total} → ${currentResult});
       }
-    } catch (e) {
-      // Không log lỗi nhỏ để tránh spam
-    }
+    } catch (e) {}
   });
 
-  ws.on("close", () => {
-    console.warn("⚠️ WebSocket bị đóng, thử kết nối lại sau 5 giây...");
-    setTimeout(connectWebSocket, reconnectInterval);
+  hitWS.on("close", () => {
+    clearInterval(hitInterval);
+    setTimeout(connectHitWebSocket, 3000);
   });
 
-  ws.on("error", (err) => {
-    console.error("❌ Lỗi WebSocket:", err.message);
-    ws.close();
+  hitWS.on("error", () => {
+    hitWS.close();
   });
 }
 
-connectWebSocket();
+connectHitWebSocket();
 
-fastify.get("/api/club789", async (request, reply) => {
-  const validResults = [...lastResults]
+// === API route ===
+fastify.get("/api/hitclub", async (req, reply) => {
+  const validResults = [...hitResults]
     .reverse()
-    .filter(item => item.d1 && item.d2 && item.d3);
+    .filter(r => r.d1 && r.d2 && r.d3);
 
-  if (validResults.length < 1) {
+  if (validResults.length < 4) {
     return {
       current_result: null,
       current_session: null,
       next_session: null,
-      prediction: null,
-      used_pattern: ""
+      prediction: "Chờ",
+      confidence: 0,
+      reason: "Chưa đủ dữ liệu để dự đoán",
+      used_pattern: {},
+      id: "CỦA @axobantool HIỂU CHƯA IMPORT RANDOM ĐẤY SÀI CC ĐỊT CON MẸ MÀY MỠ ĐẤY MÀ HÚP :))"
     };
   }
 
+  const totalsList = validResults.map(r => r.d1 + r.d2 + r.d3);
   const current = validResults[0];
-  const total = current.d1 + current.d2 + current.d3;
-  const result = total >= 11 ? "Tài" : "Xỉu";
+  const total = totalsList[totalsList.length - 1];
+  const result = getTaiXiu(total);
   const currentSession = current.sid;
   const nextSession = currentSession + 1;
-  const prediction = result === "Tài" ? "Xỉu" : "Tài";
-
-  const pattern = validResults
-    .slice(0, 6)
-    .map(item => {
-      const sum = item.d1 + item.d2 + item.d3;
-      return sum >= 11 ? "T" : "X";
-    })
-    .reverse()
-    .join("");
+  const predict = duDoanSunwin200kVip(totalsList);
 
   return {
     current_result: result,
     current_session: currentSession,
     next_session: nextSession,
-    prediction: prediction,
-    used_pattern: pattern
+    prediction: predict.prediction,
+    confidence: predict.confidence,
+    reason: predict.reason,
+    used_pattern: predict.history_summary,
+    id: "CỦA @axobantool HIỂU CHƯA IMPORT RANDOM ĐẤY SÀI CC ĐỊT CON MẸ MÀY MỠ ĐẤY MÀ HÚP :))"
   };
 });
 
+// === Start server ===
 const start = async () => {
   try {
-    const address = await fastify.listen({ port: PORT, host: "0.0.0.0" });
-    console.log(🚀 Server đang chạy tại ${address});
+    await fastify.listen({ port: PORT, host: "0.0.0.0" });
+    console.log(`Server Tài/Xỉu đang chạy tại cổng ${PORT}`);
   } catch (err) {
     console.error(err);
     process.exit(1);
