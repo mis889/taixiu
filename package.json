@@ -1,0 +1,12 @@
+{
+  "name": "taixiu",
+  "version": "1.0.0",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "fastify": "^4.0.0",
+    "ws": "^8.0.0"
+  }
+}
