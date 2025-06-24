@@ -194,6 +194,7 @@ fastify.get("/api/hitclub", async (req, reply) => {
       confidence: 0,
       reason: "Chưa đủ dữ liệu để dự đoán",
       used_pattern: {},
+      api_id: "@axobantool"
     };
   }
 
@@ -204,7 +205,7 @@ fastify.get("/api/hitclub", async (req, reply) => {
   const currentSession = current.sid;
   const nextSession = currentSession + 1;
   const predict = duDoanSunwin200kVip(totalsList);
-  
+
   return {
     current_result: result,
     current_session: currentSession,
@@ -212,7 +213,8 @@ fastify.get("/api/hitclub", async (req, reply) => {
     prediction: predict.prediction,
     confidence: predict.confidence,
     reason: predict.reason,
-    used_pattern: predict.history_summary
+    used_pattern: predict.history_summary,
+    api_id: "@axobantool"
   };
 });
 
