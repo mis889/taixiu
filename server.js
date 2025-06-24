@@ -180,7 +180,7 @@ function connectHitWebSocket() {
 connectHitWebSocket();
 
 // === API route ===
-fastify.get("/api/diahitdiahit", async (req, reply) => {
+fastify.get("/api/hitclub", async (req, reply) => {
   const validResults = [...hitResults]
     .reverse()
     .filter(r => r.d1 && r.d2 && r.d3);
@@ -204,7 +204,6 @@ fastify.get("/api/diahitdiahit", async (req, reply) => {
   const currentSession = current.sid;
   const nextSession = currentSession + 1;
   const predict = duDoanSunwin200kVip(totalsList);
-  const api_axo = api của a xó cuti 
   
   return {
     current_result: result,
@@ -214,7 +213,6 @@ fastify.get("/api/diahitdiahit", async (req, reply) => {
     confidence: predict.confidence,
     reason: predict.reason,
     used_pattern: predict.history_summary
-    api_axo: api của a xó cuti
   };
 });
 
