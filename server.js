@@ -9,8 +9,9 @@ let currentResult = null;
 let currentSession = null;
 
 let ws = null;
-let reconnectInterval = 5000;
 let sendDiceInterval = null;
+let reconnectInterval = 5000;
+let authenticated = false;
 
 function connectWebSocket() {
   ws = new WebSocket("wss://websocket.atpman.net/websocket");
@@ -31,28 +32,34 @@ function connectWebSocket() {
 
     ws.send(JSON.stringify(authPayload));
     console.log("🔐 Đã gửi payload xác thực");
-
-    // Gửi lệnh lấy kết quả liên tục mỗi 5 giây
-    sendDiceInterval = setInterval(() => {
-      if (ws.readyState === WebSocket.OPEN) {
-        const dicePayload = [
-          6,
-          "MiniGame",
-          "taixiuUnbalancedPlugin",
-          { cmd: 2000 }
-        ];
-        ws.send(JSON.stringify(dicePayload));
-        console.log("🎲 Gửi yêu cầu kết quả (cmd: 2000)");
-      }
-    }, 5000);
   });
 
   ws.on("message", (data) => {
     try {
       const json = JSON.parse(data);
+
+      // Log dữ liệu WS nhận về (chỉ khi cần debug)
+      // console.log("🧾 WS data:", JSON.stringify(json));
+
+      // Nếu xác thực thành công và chưa gửi lệnh lấy kết quả
+      if (Array.isArray(json) && json[2]?.includes("authenticated") && !authenticated) {
+        authenticated = true;
+        console.log("✅ Đã xác thực thành công");
+
+        // Gửi cmd:2000 mỗi 5 giây sau xác thực thành công
+        sendDiceInterval = setInterval(() => {
+          if (ws.readyState === WebSocket.OPEN) {
+            const dicePayload = [6, "MiniGame", "taixiuUnbalancedPlugin", { cmd: 2000 }];
+            ws.send(JSON.stringify(dicePayload));
+            console.log("🎲 Gửi yêu cầu kết quả (cmd: 2000)");
+          }
+        }, 5000);
+      }
+
+      // Xử lý kết quả
       if (Array.isArray(json) && json[1]?.htr) {
         lastResults = json[1].htr
-          .filter(item => typeof item.d1 === 'number' && typeof item.d2 === 'number' && typeof item.d3 === 'number')
+          .filter(item => typeof item.d1 === "number" && typeof item.d2 === "number" && typeof item.d3 === "number")
           .map(item => ({
             sid: item.sid,
             d1: item.d1,
@@ -68,18 +75,19 @@ function connectWebSocket() {
         console.log(`📥 Phiên ${currentSession}: ${latest.d1} + ${latest.d2} + ${latest.d3} = ${total} → ${currentResult}`);
       }
     } catch (e) {
-      // Bỏ qua lỗi nhỏ
+      // Bỏ qua lỗi JSON không hợp lệ
     }
   });
 
   ws.on("close", () => {
-    console.warn("⚠️ WebSocket đóng. Đang thử kết nối lại...");
+    console.warn("⚠️ WebSocket đóng. Đang thử lại sau 5s...");
     clearInterval(sendDiceInterval);
+    authenticated = false;
     setTimeout(connectWebSocket, reconnectInterval);
   });
 
   ws.on("error", (err) => {
-    console.error("❌ Lỗi WebSocket:", err.message);
+    console.error("❌ WebSocket lỗi:", err.message);
     ws.close();
   });
 }
@@ -89,7 +97,7 @@ connectWebSocket();
 fastify.get("/api/club789", async (request, reply) => {
   const validResults = [...lastResults]
     .reverse()
-    .filter(item => typeof item.d1 === 'number' && typeof item.d2 === 'number' && typeof item.d3 === 'number');
+    .filter(item => typeof item.d1 === "number" && typeof item.d2 === "number" && typeof item.d3 === "number");
 
   if (validResults.length < 1) {
     return {
