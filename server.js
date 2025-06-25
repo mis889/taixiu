@@ -9,63 +9,30 @@ let currentResult = null;
 let currentSession = null;
 
 let ws = null;
-let sendDiceInterval = null;
 let reconnectInterval = 5000;
-let authenticated = false;
 
 function connectWebSocket() {
-  ws = new WebSocket("wss://websocket.atpman.net/websocket");
+  ws = new WebSocket("wss://socketcsmm.onrender.com");
 
   ws.on("open", () => {
     console.log("✅ Đã kết nối WebSocket");
 
-    const authPayload = [
-      1,
-      "MiniGame",
-      "banohu1",
-      "ba2007ok",
-      {
-        info: "{\"ipAddress\":\"2a09:bac5:d46b:263c::3cf:60\",\"userId\":\"daf3a573-8ac5-4db4-9717-256b848044af\",\"username\":\"S8_miss88\",\"timestamp\":1750819930667,\"refreshToken\":\"39d76d58fc7e4b819e097764af7240c8.34dcc325f1fc4e758e832c8f7a960224\"}",
-        signature: "876FF9B9E17FE46834CDF5480115F5608989198191507DE16041014BE8E5BAF8296485BFEBBF689AD4AE233A4DA7E5F9B41984757E98E0DBB854C3B6F29724610011D9F5980E8FCAAAE932EE5109CC45B2DEB686C5B94433B6A9B3BFF007DAB706188F634E7B485B4CEF63A1A6F3E99456086974321C775D80803669EEB423ED"
-      }
-    ];
-
-    ws.send(JSON.stringify(authPayload));
-    console.log("🔐 Đã gửi payload xác thực");
+    // Gửi yêu cầu bắt đầu nhận dữ liệu Tài Xỉu
+    const subscribePayload = JSON.stringify({ type: "subscribe", game: "sunwin" });
+    ws.send(subscribePayload);
   });
 
   ws.on("message", (data) => {
     try {
-      const json = JSON.parse(data);
+      const json = JSON.parse(data.toString());
 
-      // Log dữ liệu WS nhận về (chỉ khi cần debug)
-      // console.log("🧾 WS data:", JSON.stringify(json));
-
-      // Nếu xác thực thành công và chưa gửi lệnh lấy kết quả
-      if (Array.isArray(json) && json[2]?.includes("authenticated") && !authenticated) {
-        authenticated = true;
-        console.log("✅ Đã xác thực thành công");
-
-        // Gửi cmd:2000 mỗi 5 giây sau xác thực thành công
-        sendDiceInterval = setInterval(() => {
-          if (ws.readyState === WebSocket.OPEN) {
-            const dicePayload = [6, "MiniGame", "taixiuUnbalancedPlugin", { cmd: 2000 }];
-            ws.send(JSON.stringify(dicePayload));
-            console.log("🎲 Gửi yêu cầu kết quả (cmd: 2000)");
-          }
-        }, 5000);
-      }
-
-      // Xử lý kết quả
-      if (Array.isArray(json) && json[1]?.htr) {
-        lastResults = json[1].htr
-          .filter(item => typeof item.d1 === "number" && typeof item.d2 === "number" && typeof item.d3 === "number")
-          .map(item => ({
-            sid: item.sid,
-            d1: item.d1,
-            d2: item.d2,
-            d3: item.d3
-          }));
+      if (json.type === "history" && Array.isArray(json.data)) {
+        lastResults = json.data.map(item => ({
+          sid: item.phien,
+          d1: item.x1,
+          d2: item.x2,
+          d3: item.x3
+        }));
 
         const latest = lastResults[0];
         const total = latest.d1 + latest.d2 + latest.d3;
@@ -74,15 +41,13 @@ function connectWebSocket() {
 
         console.log(`📥 Phiên ${currentSession}: ${latest.d1} + ${latest.d2} + ${latest.d3} = ${total} → ${currentResult}`);
       }
-    } catch (e) {
-      // Bỏ qua lỗi JSON không hợp lệ
+    } catch (err) {
+      console.error("❌ Lỗi xử lý WS:", err.message);
     }
   });
 
   ws.on("close", () => {
-    console.warn("⚠️ WebSocket đóng. Đang thử lại sau 5s...");
-    clearInterval(sendDiceInterval);
-    authenticated = false;
+    console.warn("⚠️ WebSocket đóng. Đang kết nối lại sau 5 giây...");
     setTimeout(connectWebSocket, reconnectInterval);
   });
 
