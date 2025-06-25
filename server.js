@@ -12,26 +12,47 @@ let ws = null;
 let reconnectInterval = 5000;
 
 function connectWebSocket() {
-  ws = new WebSocket("wss://socketcsmm.onrender.com");
+  ws = new WebSocket("wss://websocket.atpman.net/websocket");
 
   ws.on("open", () => {
     console.log("✅ Đã kết nối WebSocket");
 
-    // Gửi yêu cầu bắt đầu nhận dữ liệu Tài Xỉu
-    const subscribePayload = JSON.stringify({ type: "subscribe", game: "sunwin" });
-    ws.send(subscribePayload);
+    const authPayload = [
+      1,
+      "MiniGame",
+      "banohu1",
+      "ba2007ok",
+      {
+        info: "{\"ipAddress\":\"2a09:bac5:d46b:263c::3cf:60\",\"userId\":\"daf3a573-8ac5-4db4-9717-256b848044af\",\"username\":\"S8_miss88\",\"timestamp\":1750819930667,\"refreshToken\":\"39d76d58fc7e4b819e097764af7240c8.34dcc325f1fc4e758e832c8f7a960224\"}",
+        signature: "876FF9B9E17FE46834CDF5480115F5608989198191507DE16041014BE8E5BAF8296485BFEBBF689AD4AE233A4DA7E5F9B41984757E98E0DBB854C3B6F29724610011D9F5980E8FCAAAE932EE5109CC45B2DEB686C5B94433B6A9B3BFF007DAB706188F634E7B485B4CEF63A1A6F3E99456086974321C775D80803669EEB423ED"
+      }
+    ];
+
+    ws.send(JSON.stringify(authPayload));
+    console.log("🔐 Đã gửi payload xác thực");
+
+    // Gửi lệnh lấy kết quả xúc xắc sau 2 giây
+    setTimeout(() => {
+      const dicePayload = [
+        6,
+        "MiniGame",
+        "taixiuUnbalancedPlugin",
+        { cmd: 2000 }
+      ];
+      ws.send(JSON.stringify(dicePayload));
+      console.log("🎲 Đã gửi lệnh lấy kết quả xúc xắc (cmd: 2000)");
+    }, 2000);
   });
 
   ws.on("message", (data) => {
     try {
-      const json = JSON.parse(data.toString());
-
-      if (json.type === "history" && Array.isArray(json.data)) {
-        lastResults = json.data.map(item => ({
-          sid: item.phien,
-          d1: item.x1,
-          d2: item.x2,
-          d3: item.x3
+      const json = JSON.parse(data);
+      if (Array.isArray(json) && json[1]?.htr) {
+        lastResults = json[1].htr.map(item => ({
+          sid: item.sid,
+          d1: item.d1,
+          d2: item.d2,
+          d3: item.d3
         }));
 
         const latest = lastResults[0];
@@ -41,18 +62,18 @@ function connectWebSocket() {
 
         console.log(`📥 Phiên ${currentSession}: ${latest.d1} + ${latest.d2} + ${latest.d3} = ${total} → ${currentResult}`);
       }
-    } catch (err) {
-      console.error("❌ Lỗi xử lý WS:", err.message);
+    } catch (e) {
+      // Không log lỗi nhỏ để tránh spam
     }
   });
 
   ws.on("close", () => {
-    console.warn("⚠️ WebSocket đóng. Đang kết nối lại sau 5 giây...");
+    console.warn("⚠️ WebSocket bị đóng, thử kết nối lại sau 5 giây...");
     setTimeout(connectWebSocket, reconnectInterval);
   });
 
   ws.on("error", (err) => {
-    console.error("❌ WebSocket lỗi:", err.message);
+    console.error("❌ Lỗi WebSocket:", err.message);
     ws.close();
   });
 }
@@ -62,7 +83,7 @@ connectWebSocket();
 fastify.get("/api/club789", async (request, reply) => {
   const validResults = [...lastResults]
     .reverse()
-    .filter(item => typeof item.d1 === "number" && typeof item.d2 === "number" && typeof item.d3 === "number");
+    .filter(item => item.d1 && item.d2 && item.d3);
 
   if (validResults.length < 1) {
     return {
