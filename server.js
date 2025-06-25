@@ -14,7 +14,6 @@ function connect() {
   ws.on("open", () => {
     console.log("✅ Đã kết nối WebSocket Tài Xỉu mới");
 
-    // Gửi payload xác thực
     const authPayload = [
       1,
       "MiniGame",
@@ -28,7 +27,6 @@ function connect() {
     ];
     ws.send(JSON.stringify(authPayload));
 
-    // Gửi payload lấy lịch sử sau 1s, rồi đều đặn 5s/lần
     setTimeout(sendHistoryRequest, 1000);
     interval = setInterval(sendHistoryRequest, 5000);
   });
@@ -36,8 +34,6 @@ function connect() {
   ws.on("message", (data) => {
     try {
       const json = JSON.parse(data);
-
-      // Kiểm tra có lịch sử Tài Xỉu trong mảng htr
       if (Array.isArray(json) && json[1]?.htr && Array.isArray(json[1].htr)) {
         results = json[1].htr.map((item) => ({
           sid: item.sid,
@@ -48,12 +44,12 @@ function connect() {
         console.log("🔄 Cập nhật kết quả lịch sử, số bản ghi:", results.length);
       }
     } catch (e) {
-      // lỗi json hoặc parse thì thôi
+      // Bỏ qua lỗi
     }
   });
 
   ws.on("close", () => {
-    console.warn("🔌 WebSocket đóng kết nối, thử kết nối lại sau 5s...");
+    console.warn("🔌 WebSocket đóng kết nối, thử lại sau 5s...");
     clearInterval(interval);
     setTimeout(connect, 5000);
   });
@@ -76,48 +72,35 @@ connect();
 fastify.get("/api/win79", async (request, reply) => {
   if (!results.length) {
     return {
-      current_result: null,
-      current_session: null,
-      next_session: null,
-      prediction: null,
-      used_pattern: "",
+      ket_qua: null,
+      phien: null,
+      d1: null,
+      d2: null,
+      d3: null,
     };
   }
 
-  // Lấy 6 bản ghi gần nhất có đầy đủ dice
-  const validResults = results
-    .filter((r) => r.d1 != null && r.d2 != null && r.d3 != null)
-    .slice(0, 6);
+  const valid = results.find(r => r.d1 != null && r.d2 != null && r.d3 != null);
 
-  if (!validResults.length) {
+  if (!valid) {
     return {
-      current_result: null,
-      current_session: null,
-      next_session: null,
-      prediction: null,
-      used_pattern: "",
+      ket_qua: null,
+      phien: null,
+      d1: null,
+      d2: null,
+      d3: null,
     };
   }
 
-  const current = validResults[0];
-  const total = current.d1 + current.d2 + current.d3;
-  const currentResult = total >= 11 ? "Tài" : "Xỉu";
-  const currentSession = current.sid;
-  const nextSession = currentSession + 1;
-  const prediction = currentResult === "Tài" ? "Xỉu" : "Tài";
-
-  // Tạo pattern từ 6 kết quả gần nhất, 'T' hoặc 'X', đảo ngược cho dễ nhìn pattern lịch sử
-  const pattern = validResults
-    .map((r) => (r.d1 + r.d2 + r.d3 >= 11 ? "T" : "X"))
-    .reverse()
-    .join("");
+  const total = valid.d1 + valid.d2 + valid.d3;
+  const ket_qua = total >= 11 ? "Tài" : "Xỉu";
 
   return {
-    current_result: currentResult,
-    current_session: currentSession,
-    next_session: nextSession,
-    prediction: prediction,
-    used_pattern: pattern,
+    ket_qua,
+    phien: valid.sid,
+    d1: valid.d1,
+    d2: valid.d2,
+    d3: valid.d3,
   };
 });
 
