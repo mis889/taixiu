@@ -10,6 +10,7 @@ let currentSession = null;
 
 let ws = null;
 let reconnectInterval = 5000;
+let sendDiceInterval = null;
 
 function connectWebSocket() {
   ws = new WebSocket("wss://websocket.atpman.net/websocket");
@@ -31,29 +32,33 @@ function connectWebSocket() {
     ws.send(JSON.stringify(authPayload));
     console.log("🔐 Đã gửi payload xác thực");
 
-    // Gửi lệnh lấy kết quả xúc xắc sau 2 giây
-    setTimeout(() => {
-      const dicePayload = [
-        6,
-        "MiniGame",
-        "taixiuUnbalancedPlugin",
-        { cmd: 2000 }
-      ];
-      ws.send(JSON.stringify(dicePayload));
-      console.log("🎲 Đã gửi lệnh lấy kết quả xúc xắc (cmd: 2000)");
-    }, 2000);
+    // Gửi lệnh lấy kết quả liên tục mỗi 5 giây
+    sendDiceInterval = setInterval(() => {
+      if (ws.readyState === WebSocket.OPEN) {
+        const dicePayload = [
+          6,
+          "MiniGame",
+          "taixiuUnbalancedPlugin",
+          { cmd: 2000 }
+        ];
+        ws.send(JSON.stringify(dicePayload));
+        console.log("🎲 Gửi yêu cầu kết quả (cmd: 2000)");
+      }
+    }, 5000);
   });
 
   ws.on("message", (data) => {
     try {
       const json = JSON.parse(data);
       if (Array.isArray(json) && json[1]?.htr) {
-        lastResults = json[1].htr.map(item => ({
-          sid: item.sid,
-          d1: item.d1,
-          d2: item.d2,
-          d3: item.d3
-        }));
+        lastResults = json[1].htr
+          .filter(item => typeof item.d1 === 'number' && typeof item.d2 === 'number' && typeof item.d3 === 'number')
+          .map(item => ({
+            sid: item.sid,
+            d1: item.d1,
+            d2: item.d2,
+            d3: item.d3
+          }));
 
         const latest = lastResults[0];
         const total = latest.d1 + latest.d2 + latest.d3;
@@ -63,12 +68,13 @@ function connectWebSocket() {
         console.log(`📥 Phiên ${currentSession}: ${latest.d1} + ${latest.d2} + ${latest.d3} = ${total} → ${currentResult}`);
       }
     } catch (e) {
-      // Không log lỗi nhỏ để tránh spam
+      // Bỏ qua lỗi nhỏ
     }
   });
 
   ws.on("close", () => {
-    console.warn("⚠️ WebSocket bị đóng, thử kết nối lại sau 5 giây...");
+    console.warn("⚠️ WebSocket đóng. Đang thử kết nối lại...");
+    clearInterval(sendDiceInterval);
     setTimeout(connectWebSocket, reconnectInterval);
   });
 
@@ -83,7 +89,7 @@ connectWebSocket();
 fastify.get("/api/club789", async (request, reply) => {
   const validResults = [...lastResults]
     .reverse()
-    .filter(item => item.d1 && item.d2 && item.d3);
+    .filter(item => typeof item.d1 === 'number' && typeof item.d2 === 'number' && typeof item.d3 === 'number');
 
   if (validResults.length < 1) {
     return {
