@@ -543,7 +543,7 @@ function connectWebSocket() {
     }, 5000);
   });
 
-  ws.on("message", async (data) => {
+  hitWS.on("message", async (data) => {
     try {
       const json = JSON.parse(data);
       if (Array.isArray(json) && json[1]?.htr) {
@@ -618,13 +618,13 @@ function connectWebSocket() {
     }
   });
 
-  ws.on("close", () => {
+  hitWS.on("close", () => {
     console.warn("Kết nối WebSocket đến Sunwin bị đóng. Đang thử kết nối lại...");
     clearInterval(intervalCmd);
     setTimeout(connectWebSocket, reconnectInterval);
   });
 
-  ws.on("error", (err) => {
+  hitWS.on("error", (err) => {
     console.error("Lỗi WebSocket từ Sunwin:", err.message);
     ws.close();
   });
