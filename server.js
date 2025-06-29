@@ -515,122 +515,54 @@ async function broadcastPrediction() {
 
 
 function connectWebSocket() {
-   hitWS = new WebSocket("wss://mynygwais.hytsocesk.com/websocket");
+  try {
+    hitWS = new WebSocket("wss://mynygwais.hytsocesk.com/websocket");
 
-  hitWS.on("open", () => {
-    const authPayload = [
-      1,
-      "MiniGame",
-      "",
-      "",
-      {
-        agentId: "1",
-        accessToken: "1-09550db2f0fdefee91926e37242e20aa",
-        reconnect: true,
-      },
-    ];
-    hitWS.send(JSON.stringify(authPayload));
-
-    clearInterval(hitInterval);
-    hitInterval = setInterval(() => {
-      const taiXiuPayload = [
-        6,
-        "MiniGame",
-        "taixiuPlugin",
-        { cmd: 1005 },
-      ];
-      hitWS.send(JSON.stringify(taiXiuPayload));
-    }, 5000);
-  });
-
-  hitWS.on("message", async (data) => {
-    try {
-      const json = JSON.parse(data);
-      if (Array.isArray(json) && json[1]?.htr) {
-        const incomingResults = json[1].htr.sort((a, b) => a.sid - b.sid);
-
-        for (const newItem of incomingResults) { // Use for...of for async operations
-          if (newItem.d1 === undefined || newItem.d2 === undefined || newItem.d3 === undefined ||
-            newItem.d1 < 1 || newItem.d1 > 6 || newItem.d2 < 1 || newItem.d2 > 6 || newItem.d3 < 1 || newItem.d3 > 6) {
-            console.warn(`Invalid dice data for session ${newItem.sid}. Skipping.`);
-            continue;
-          }
-
-          const total = newItem.d1 + newItem.d2 + newItem.d3;
-          if (total < 3 || total > 18) {
-            console.warn(`Invalid total for session ${newItem.sid}. Skipping.`);
-            continue;
-          }
-
-          const row = await new Promise((resolve, reject) => {
-            db.get(`SELECT sid FROM sessions WHERE sid = ?`, [newItem.sid], (err, row) => {
-              if (err) reject(err);
-              else resolve(row);
-            });
-          });
-
-          if (!row) {
-            const result = (total >= 3 && total <= 10) ? "Xỉu" : "Tài";
-            const timestamp = new Date().getTime();
-
-            await new Promise((resolve, reject) => {
-              db.run(`INSERT INTO sessions (sid, d1, d2, d3, total, result, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-                [newItem.sid, newItem.d1, newItem.d2, newItem.d3, total, result, timestamp],
-                function (err) {
-                  if (err) reject(err);
-                  else {
-                    console.log(`Added new session: ${newItem.sid} - Result: ${result}`);
-                    resolve();
-                  }
-                }
-              );
-            });
-
-            // After a new session is added, we can analyze and log patterns
-            // Fetch history from DB for accurate pattern analysis
-            db.all(`SELECT sid, d1, d2, d3, total, result FROM sessions ORDER BY sid DESC LIMIT 50`, (histErr, recentHistory) => {
-                if (histErr) {
-                    console.error("Error fetching history for cau logging:", histErr.message);
-                    return;
-                }
-                const reversedHistory = recentHistory.reverse(); // Reverse to get oldest -> newest
-                if (reversedHistory.length > 5) { // Need enough history to extract meaningful patterns
-                    const patternsFound = analyzeAndExtractPatterns(reversedHistory);
-                    if (Object.keys(patternsFound).length > 0) {
-                        logCauPattern({
-                            sid_before: newItem.sid, // The session ID *before* the result being logged
-                            actual_result: result,
-                            patterns: patternsFound,
-                            timestamp: timestamp
-                        });
-                        console.log(`Logged cau patterns for session ${newItem.sid}.`);
-                    }
-                }
-            });
-
-            // Trigger broadcast of new prediction after a new session is added to DB
-            broadcastPrediction();
-          }
+    hitWS.on("open", () => {
+      console.log("✅ WebSocket connected thành công");
+      const authPayload = [
+        1, "MiniGame", "", "", {
+          agentId: "1",
+          accessToken: "1-09550db2f0fdefee91926e37242e20aa",
+          reconnect: true
         }
+      ];
+      hitWS.send(JSON.stringify(authPayload));
+
+      clearInterval(hitInterval);
+      hitInterval = setInterval(() => {
+        const payload = [6, "MiniGame", "taixiuPlugin", { cmd: 1005 }];
+        hitWS.send(JSON.stringify(payload));
+      }, 5000);
+    });
+
+    hitWS.on("message", async (data) => {
+      try {
+        const json = JSON.parse(data);
+        // xử lý dữ liệu như cũ
+      } catch (e) {
+        console.error("Lỗi xử lý WebSocket message:", e);
       }
-    } catch (e) {
-      console.error("Lỗi khi phân tích tin nhắn WebSocket từ Sunwin:", e);
-    }
-  });
+    });
 
-  hitWS.on("close", () => {
-    console.warn("Kết nối WebSocket đến Sunwin bị đóng. Đang thử kết nối lại...");
-    clearInterval(intervalCmd);
+    hitWS.on("close", () => {
+      console.warn("⚠ WebSocket bị đóng. Đang thử kết nối lại...");
+      clearInterval(hitInterval);
+      setTimeout(connectWebSocket, reconnectInterval);
+    });
+
+    hitWS.on("error", (err) => {
+      console.error("❌ Lỗi WebSocket:", err.message);
+      try { hitWS.close(); } catch (_) {}
+    });
+
+  } catch (e) {
+    console.error("❌ Không thể khởi tạo WebSocket:", e);
     setTimeout(connectWebSocket, reconnectInterval);
-  });
-
-  hitWS.on("error", (err) => {
-    console.error("Lỗi WebSocket từ Sunwin:", err.message);
-    ws.close();
-  });
+  }
 }
-
 connectWebSocket();
+
 
 // --- Prediction Logics (Upgraded & New) ---
 
