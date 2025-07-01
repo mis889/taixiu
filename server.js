@@ -89,7 +89,7 @@ fastify.get("/api/axocuto", async (request, reply) => {
       d1: null,
       d2: null,
       d3: null,
-      id: "@axobantool ( chuyên sục )"
+      id: @axobantool ( chuyên sục )
     };
   }
 
@@ -103,7 +103,7 @@ fastify.get("/api/axocuto", async (request, reply) => {
     d1: current.d1,
     d2: current.d2,
     d3: current.d3,
-    id: "@axobantool ( chuyên sục )"
+    id: @axobantool ( chuyên sục )
   };
 });
 
