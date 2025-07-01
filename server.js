@@ -23,7 +23,7 @@ function connectWebSocket() {
   ws = new WebSocket("wss://websocket.azhkthg1.net/websocket?token=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJhbW91bnQiOjB9.p56b5g73I9wyoVu4db679bOvVeFJWVjGDg_ulBXyav8");
 
   ws.on("open", () => {
-    console.log("Đã kết nối WebSocket");
+    console.log("✅ Đã kết nối WebSocket");
 
     const authPayload = [
       1,
@@ -57,24 +57,26 @@ function connectWebSocket() {
         currentResult = total >= 11 ? "Tài" : "Xỉu";
         currentSession = latest.sid;
       }
-    } catch (e) {}
+    } catch (e) {
+      // Ignore malformed messages
+    }
   });
 
   ws.on("close", () => {
-    console.warn("WebSocket bị đóng, thử kết nối lại...");
+    console.warn("⚠️ WebSocket bị đóng, thử kết nối lại sau 5s...");
     clearInterval(intervalCmd);
     setTimeout(connectWebSocket, reconnectInterval);
   });
 
   ws.on("error", (err) => {
-    console.error("Lỗi WebSocket:", err.message);
+    console.error("❌ Lỗi WebSocket:", err.message);
     ws.close();
   });
 }
 
 connectWebSocket();
 
-// ✅ API chỉ trả về thông tin đơn giản như yêu cầu
+// ✅ API trả về dữ liệu tài xỉu
 fastify.get("/api/axocuto", async (request, reply) => {
   const validResults = [...lastResults]
     .reverse()
@@ -108,7 +110,7 @@ fastify.get("/api/axocuto", async (request, reply) => {
 const start = async () => {
   try {
     const address = await fastify.listen({ port: PORT, host: "0.0.0.0" });
-    console.log(Fastify server đang chạy tại ${address});
+    console.log(`🚀 Fastify server đang chạy tại ${address}`);
   } catch (err) {
     console.error(err);
     process.exit(1);
