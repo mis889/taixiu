@@ -57,9 +57,7 @@ function connectWebSocket() {
         currentResult = total >= 11 ? "Tài" : "Xỉu";
         currentSession = latest.sid;
       }
-    } catch (e) {
-      // Ignore malformed messages
-    }
+    } catch (e) {}
   });
 
   ws.on("close", () => {
@@ -76,7 +74,7 @@ function connectWebSocket() {
 
 connectWebSocket();
 
-// ✅ API trả về dữ liệu tài xỉu
+// ✅ API trả kết quả tài xỉu
 fastify.get("/api/axocuto", async (request, reply) => {
   const validResults = [...lastResults]
     .reverse()
@@ -84,29 +82,32 @@ fastify.get("/api/axocuto", async (request, reply) => {
 
   if (validResults.length < 1) {
     return {
-      current_session: null,
-      current_result: null,
-      d1: null,
-      d2: null,
-      d3: null,
-      id: "@axobantool ( chuyên sục )"
+      "Ket_qua": null,
+      "Phien": null,
+      "Tong": null,
+      "Xuc_xac_1": null,
+      "Xuc_xac_2": null,
+      "Xuc_xac_3": null,
+      "id": "@axobantool"
     };
   }
 
   const current = validResults[0];
-  const total = current.d1 + current.d2 + current.d3;
-  const result = total >= 11 ? "Tài" : "Xỉu";
+  const tong = current.d1 + current.d2 + current.d3;
+  const ket_qua = tong >= 11 ? "Tài" : "Xỉu";
 
   return {
-    current_session: current.sid,
-    current_result: result,
-    d1: current.d1,
-    d2: current.d2,
-    d3: current.d3,
-    id: "@axobantool ( chuyên sục )"
+    "Ket_qua": ket_qua,
+    "Phien": current.sid,
+    "Tong": tong,
+    "Xuc_xac_1": current.d1,
+    "Xuc_xac_2": current.d2,
+    "Xuc_xac_3": current.d3,
+    "id": "@axobantool"
   };
 });
 
+// ✅ Khởi động server
 const start = async () => {
   try {
     const address = await fastify.listen({ port: PORT, host: "0.0.0.0" });
