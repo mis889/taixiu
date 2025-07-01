@@ -75,7 +75,7 @@ function connectWebSocket() {
 connectWebSocket();
 
 // ✅ API chỉ trả về thông tin đơn giản như yêu cầu
-fastify.get("/api/taixiu", async (request, reply) => {
+fastify.get("/api/axocuto", async (request, reply) => {
   const validResults = [...lastResults]
     .reverse()
     .filter(item => item.d1 && item.d2 && item.d3);
