@@ -1,4 +1,3 @@
-// server.js
 const Fastify = require("fastify");
 const WebSocket = require("ws");
 
@@ -32,14 +31,8 @@ function connectWebSocket() {
       "SC_xigtupou",
       "conga999",
       {
-        info: JSON.stringify({
-          ipAddress: "127.0.0.1",
-          userId: "abc-123",
-          username: "SC_demo",
-          timestamp: Date.now(),
-          refreshToken: "demo.token.here"
-        }),
-        signature: "DEMO_SIGNATURE"
+        info: "{\"ipAddress\":\"2001:ee0:4f91:2000:49ad:34c3:87af:91bd\",\"userId\":\"eff718a2-31db-4dd5-acb5-41f8cfd3e486\",\"username\":\"SC_miss88\",\"timestamp\":1751339136811,\"refreshToken\":\"22aadcb93490422b8d713f8776329a48.9adf6a5293d8443a888edd3ee802b9f4\"}",
+        signature: "1CC2919566B000AA9A5D184382B983232798F1AE0D0684F2B60148B88ADEF951F43494503E97981EB96275E4597D93208029C516F77066242A5E549C902B21FF8AB326300FDCBE1876D2591AA4C8709C2C2CA59F058E92D666F5B6B2FD8A7DD9A7C519AE6EB3CBFA9D80432DECFE3A978C3DDBE77D9D0FB62E222E873A42F780"
       }
     ];
 
@@ -64,13 +57,11 @@ function connectWebSocket() {
         currentResult = total >= 11 ? "Tài" : "Xỉu";
         currentSession = latest.sid;
       }
-    } catch (e) {
-      console.error("❌ Parse lỗi:", e.message);
-    }
+    } catch (e) {}
   });
 
   ws.on("close", () => {
-    console.warn("⚠️ WebSocket đóng. Đang thử lại...");
+    console.warn("⚠️ WebSocket bị đóng, thử kết nối lại sau 5s...");
     clearInterval(intervalCmd);
     setTimeout(connectWebSocket, reconnectInterval);
   });
@@ -83,8 +74,12 @@ function connectWebSocket() {
 
 connectWebSocket();
 
-fastify.get("/api/axocuto", async () => {
-  const validResults = [...lastResults].reverse().filter(item => item.d1 && item.d2 && item.d3);
+// ✅ API trả kết quả tài xỉu
+fastify.get("/api/axocuto", async (request, reply) => {
+  const validResults = [...lastResults]
+    .reverse()
+    .filter(item => item.d1 && item.d2 && item.d3);
+
   if (validResults.length < 1) {
     return {
       "Ket_qua": null,
@@ -93,7 +88,7 @@ fastify.get("/api/axocuto", async () => {
       "Xuc_xac_1": null,
       "Xuc_xac_2": null,
       "Xuc_xac_3": null,
-      "id": "@hatronghoann"
+      "id": "@hatronghoann và @axobantool chịch nhau"
     };
   }
 
@@ -108,10 +103,11 @@ fastify.get("/api/axocuto", async () => {
     "Xuc_xac_1": current.d1,
     "Xuc_xac_2": current.d2,
     "Xuc_xac_3": current.d3,
-    "id": "@hatronghoann"
+    "id": "@hatronghoann và @axobantool chịch nhau"
   };
 });
 
+// ✅ Khởi động server
 const start = async () => {
   try {
     const address = await fastify.listen({ port: PORT, host: "0.0.0.0" });
