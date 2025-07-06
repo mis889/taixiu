@@ -8,9 +8,14 @@ const PORT = process.env.PORT || 3000;
 
 const GEMINI_API_KEY = "AIzaSyCNmonlpE6yLsY_olGUPfN1K-dvQQuQmkw";
 
-let lastResults = [];
-let currentResult = null;
-let currentSession = null;
+let lastResults = [
+  { sid: 1006, d1: 4, d2: 3, d3: 5 },
+  { sid: 1005, d1: 2, d2: 2, d3: 4 },
+  { sid: 1004, d1: 6, d2: 5, d3: 1 },
+  { sid: 1003, d1: 3, d2: 2, d3: 4 },
+  { sid: 1002, d1: 5, d2: 5, d3: 2 },
+  { sid: 1001, d1: 2, d2: 2, d3: 3 }
+];
 
 let ws = null;
 let reconnectInterval = 5000;
@@ -62,12 +67,10 @@ function connectWebSocket() {
           d2: item.d2,
           d3: item.d3
         }));
-        const latest = lastResults[0];
-        const total = latest.d1 + latest.d2 + latest.d3;
-        currentResult = total >= 11 ? "Tài" : "Xỉu";
-        currentSession = latest.sid;
       }
-    } catch (e) {}
+    } catch (e) {
+      console.error("❌ Lỗi xử lý dữ liệu:", e.message);
+    }
   });
 
   ws.on("close", () => {
