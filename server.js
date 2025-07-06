@@ -1,12 +1,14 @@
-// --- Full Code Fastify WebSocket + Gemini AI Dự Đoán Tài Xỉu ---
 const Fastify = require("fastify");
 const WebSocket = require("ws");
-const fetch = require("node-fetch");
+const fetch = require("node-fetch"); // Đảm bảo đã cài npm install node-fetch@2
 
 const fastify = Fastify({ logger: false });
 const PORT = process.env.PORT || 3000;
+
+// Dùng biến môi trường trong production
 const GEMINI_API_KEY = "AIzaSyC-aNjKTQ2XVaM3LPUWLjQtB67m5VXO58o";
 
+// Biến toàn cục
 let lastResults = [];
 let ws = null;
 let intervalCmd = null;
@@ -48,7 +50,7 @@ function connectWebSocket() {
           d3: item.d3
         }));
       }
-    } catch {}
+    } catch (e) {}
   });
 
   ws.on("close", () => {
@@ -66,7 +68,7 @@ fastify.get("/api/axocuto", async (req, res) => {
   if (results.length < 3) {
     return {
       prediction: "Không đủ dữ liệu",
-      reason: "Cần ít nhất 3 phiên để phân tích",
+      reason: "Cần ít nhất 3 phiên để phân tích"
     };
   }
 
@@ -74,12 +76,12 @@ fastify.get("/api/axocuto", async (req, res) => {
   const patternArr = results.slice(0, 3).map(r => getResult(r.d1, r.d2, r.d3));
   const patternStr = patternArr.join(" - ");
 
-  const prompt = `Bạn là chuyên gia phân tích game Tài Xỉu. Dựa vào chuỗi: \"${patternStr}\", hãy phân tích loại cầu, dự đoán kết quả tiếp theo và độ tin cậy. Trả lời đúng JSON:
+  const prompt = `Bạn là chuyên gia phân tích game Tài Xỉu. Dựa vào chuỗi: "${patternStr}", hãy phân tích loại cầu, dự đoán kết quả tiếp theo và độ tin cậy. Trả lời đúng JSON:
 {
-  \"prediction\": \"Tài\",
-  \"reason\": \"Giải thích...\",
-  \"pattern_type_identified\": \"Cầu 1-1\",
-  \"confidence_percentage\": 85
+  "prediction": "Tài",
+  "reason": "Giải thích...",
+  "pattern_type_identified": "Cầu 1-1",
+  "confidence_percentage": 85
 }`;
 
   try {
@@ -89,12 +91,16 @@ fastify.get("/api/axocuto", async (req, res) => {
         "Content-Type": "application/json",
         "X-goog-api-key": GEMINI_API_KEY
       },
-      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }]
+      })
     });
+
     const aiData = await aiRes.json();
-    const text = aiData.candidates?.[0]?.content?.parts?.[0]?.text || "";
-    const clean = text.replace(/```json|```/g, "").trim();
+    const raw = aiData.candidates?.[0]?.content?.parts?.[0]?.text || "";
+    const clean = raw.replace(/```json|```/g, "").trim();
     const parsed = JSON.parse(clean);
+
     return {
       current_result: getResult(results[0].d1, results[0].d2, results[0].d3),
       current_session: results[0].sid,
@@ -106,8 +112,10 @@ fastify.get("/api/axocuto", async (req, res) => {
         reason: parsed.reason,
         pattern_type: parsed.pattern_type_identified,
         confidence: parsed.confidence_percentage + "%"
-      }
+      },
+      gemini_response: raw
     };
+
   } catch (err) {
     return {
       prediction: "Lỗi AI",
