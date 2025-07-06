@@ -1,4 +1,3 @@
-// server.js
 const Fastify = require("fastify");
 const WebSocket = require("ws");
 
@@ -26,15 +25,9 @@ function taiXiuStats(totals) {
 
   const types = totals.map(getTaiXiu);
   const count = { "Tài": 0, "Xỉu": 0 };
-  types.forEach(type => {
-    count[type]++;
-  });
-
+  types.forEach(type => count[type]++);
   const totalFreq = {};
-  totals.forEach(t => {
-    totalFreq[t] = (totalFreq[t] || 0) + 1;
-  });
-
+  totals.forEach(t => totalFreq[t] = (totalFreq[t] || 0) + 1);
   const most_common_total = Object.entries(totalFreq).reduce((a, b) => a[1] > b[1] ? a : b)[0];
 
   return {
