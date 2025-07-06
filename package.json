@@ -1,11 +1,14 @@
 {
-  "name": "taixiu-ai-gemini",
+  "name": "taixiu-ai",
   "version": "1.0.0",
-  "type": "commonjs",
-  "main": "index.js",
+  "description": "Server WebSocket và dự đoán Tài Xỉu bằng AI Gemini",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
   "dependencies": {
-    "fastify": "^4.0.0",
-    "ws": "^8.0.0",
-    "node-fetch": "^2.6.7"
+    "@google/generative-ai": "^0.5.0",
+    "fastify": "^4.27.2",
+    "ws": "^8.15.1"
   }
 }
