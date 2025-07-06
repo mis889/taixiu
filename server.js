@@ -3,7 +3,7 @@ const WebSocket = require("ws");
 
 const fastify = Fastify({ logger: false });
 const PORT = process.env.PORT || 3000;
-const GEMINI_API_KEY = "AIzaSyC-aNjKTQ2XVaM3LPUWLjQtB67m5VXO58o";
+const GEMINI_API_KEY = "AIzaSyC-aNjKTQ2XVaM3LPUWLjQtB67m5VXO58o"; // Please be cautious with hardcoding API keys in production
 
 let lastResults = [];
 let ws = null;
@@ -79,11 +79,21 @@ fastify.get("/api/axocuto", async (request, reply) => {
   const patternArr = results.slice(0, 3).map(r => getResult(r.d1, r.d2, r.d3));
   const patternStr = patternArr.join(" - ");
 
-  const prompt = `Dựa trên pattern sau: ${patternStr}
-Hãy dự đoán kết quả phiên tiếp theo là gì (Tài hoặc Xỉu)?
-Giải thích lý do, xác định loại pattern, và đưa ra % độ tin cậy.`;
+  // This prompt aims to get a response similar to the image's gemini_response
+  const prompt = `Dựa trên pattern gần đây nhất là "${patternStr}".
+Hãy đưa ra dự đoán về kết quả của phiên tiếp theo (Tài hoặc Xỉu) và giải thích chi tiết lý do.
+Cấu trúc phản hồi nên bao gồm:
+Dự đoán: [Tài/Xỉu]
+Lý do:
+1. Phân tích xu hướng từ pattern [patternStr]: [giải thích xu hướng và khả năng đảo ngược nếu có]
+2. Xác định loại cầu đang xuất hiện: [Phân loại cầu, ví dụ: cầu hỗn hợp, cầu bệt, cầu 1-1, v.v. hoặc nếu khó xác định với dữ liệu ngắn]
+3. Dự đoán phiên tiếp theo dựa trên quy luật thống kê: [lý do dựa trên thống kê hoặc khả năng đảo ngược]
+Độ tin cậy: [phần trăm, ví dụ: 85%]` // Added confidence to the prompt
 
   let geminiText = "";
+  let extractedPrediction = "Không xác định"; // Default prediction
+  let extractedConfidence = "0%"; // Default confidence
+
   try {
     const res = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent", {
       method: "POST",
@@ -99,23 +109,55 @@ Giải thích lý do, xác định loại pattern, và đưa ra % độ tin cậ
     const data = await res.json();
     geminiText = data?.candidates?.[0]?.content?.parts?.[0]?.text || "Không có phản hồi từ AI";
 
+    // Attempt to parse prediction and confidence from geminiText
+    const predictionMatch = geminiText.match(/Dự đoán:\s*(Tài|Xỉu)/);
+    if (predictionMatch && predictionMatch[1]) {
+      extractedPrediction = predictionMatch[1];
+    } else if (geminiText.includes("Xỉu")) { // Fallback if explicit "Dự đoán:" isn't found
+      extractedPrediction = "Xỉu";
+    } else if (geminiText.includes("Tài")) {
+      extractedPrediction = "Tài";
+    }
+
+    const confidenceMatch = geminiText.match(/Độ tin cậy:\s*(\d+)%/);
+    if (confidenceMatch && confidenceMatch[1]) {
+      extractedConfidence = confidenceMatch[1] + "%";
+    }
+
   } catch (err) {
     geminiText = "Lỗi khi gọi AI Gemini: " + err.message;
+    console.error("Lỗi khi gọi AI Gemini:", err);
   }
+
+  // Extract the reason and pattern type from geminiText for the ai_analysis field
+  // This is a basic extraction and might need more robust parsing depending on AI's varied output.
+  let aiReason = "";
+  let aiPatternType = "**Đang xuất hiện:** Với dữ liệu ngắn như vậy, rất khó để xác định một loại cầu cụ thể. Có thể xem đây là cầu hỗn hợp, hoặc một đoạn cầu bị gián đoạn."; // Default from image
+
+  const reasonMatch = geminiText.match(/Lý do:\s*([\s\S]*?)(?=Độ tin cậy:|$)/);
+  if (reasonMatch && reasonMatch[1]) {
+      aiReason = reasonMatch[1].trim();
+      // Try to refine pattern_type from reason
+      const patternTypeInReason = aiReason.match(/Xác định loại cầu đang xuất hiện:\s*(.*)/);
+      if (patternTypeInReason && patternTypeInReason[1]) {
+          aiPatternType = patternTypeInReason[1].trim();
+      }
+  }
+
 
   return {
     current_result: getResult(latest.d1, latest.d2, latest.d3),
     current_session: latest.sid,
     next_session: latest.sid + 1,
-    prediction: geminiText.includes("Xỉu") ? "Xỉu" : "Tài",
+    prediction: extractedPrediction, // Use extracted prediction from AI
     used_pattern: "AI Gemini Pro",
-    pattern: `Pattern ${patternStr} - Dự đoán bằng AI Gemini`,
+    pattern: `Pattern ${patternStr} - Phân tích bằng AI Gemini`,
     ai_analysis: {
-      reason: "",
-      pattern_type: "**Đang xuất hiện:** Với dữ liệu ngắn như vậy, rất khó để xác định một loại cầu cụ thể. Có thể xem đây là cầu hỗn hợp, hoặc đoạn cầu bị gián đoạn.",
-      confidence: "85%"
+      reason: aiReason, // Populate reason from AI response
+      pattern_type: aiPatternType, // Populate pattern_type from AI response or keep default
+      confidence: extractedConfidence // Populate confidence from AI response
     },
-    gemini_response: geminiText
+    gemini_response: geminiText // Full AI response
   };
 });
 
