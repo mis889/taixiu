@@ -1,14 +1,12 @@
 const Fastify = require("fastify");
 const WebSocket = require("ws");
-const fetch = require("node-fetch"); // Đảm bảo đã cài npm install node-fetch@2
+const fetch = require("node-fetch"); // Cần: npm install node-fetch@2
 
 const fastify = Fastify({ logger: false });
 const PORT = process.env.PORT || 3000;
 
-// Dùng biến môi trường trong production
 const GEMINI_API_KEY = "AIzaSyC-aNjKTQ2XVaM3LPUWLjQtB67m5VXO58o";
 
-// Biến toàn cục
 let lastResults = [];
 let ws = null;
 let intervalCmd = null;
@@ -50,7 +48,7 @@ function connectWebSocket() {
           d3: item.d3
         }));
       }
-    } catch (e) {}
+    } catch {}
   });
 
   ws.on("close", () => {
@@ -76,10 +74,11 @@ fastify.get("/api/axocuto", async (req, res) => {
   const patternArr = results.slice(0, 3).map(r => getResult(r.d1, r.d2, r.d3));
   const patternStr = patternArr.join(" - ");
 
-  const prompt = `Bạn là chuyên gia phân tích game Tài Xỉu. Dựa vào chuỗi: "${patternStr}", hãy phân tích loại cầu, dự đoán kết quả tiếp theo và độ tin cậy. Trả lời đúng JSON:
+  const prompt = `Bạn là chuyên gia phân tích Tài Xỉu. Dữ liệu gần nhất: "${patternStr}". Hãy dự đoán kết quả tiếp theo (Tài/Xỉu), giải thích lý do, xác định loại cầu và đưa ra độ tin cậy. Trả về đúng JSON như sau, không có bất kỳ chữ nào bên ngoài:
+
 {
   "prediction": "Tài",
-  "reason": "Giải thích...",
+  "reason": "Lý do phân tích...",
   "pattern_type_identified": "Cầu 1-1",
   "confidence_percentage": 85
 }`;
@@ -97,9 +96,19 @@ fastify.get("/api/axocuto", async (req, res) => {
     });
 
     const aiData = await aiRes.json();
-    const raw = aiData.candidates?.[0]?.content?.parts?.[0]?.text || "";
+    const raw = aiData?.candidates?.[0]?.content?.parts?.[0]?.text || "";
     const clean = raw.replace(/```json|```/g, "").trim();
-    const parsed = JSON.parse(clean);
+
+    let parsed = {};
+    try {
+      parsed = JSON.parse(clean);
+    } catch (e) {
+      console.error("❌ Lỗi parse JSON từ Gemini:", e.message);
+      return {
+        prediction: "Lỗi AI",
+        reason: "Không thể phân tích JSON từ phản hồi AI. Nội dung trả về: " + clean
+      };
+    }
 
     return {
       current_result: getResult(results[0].d1, results[0].d2, results[0].d3),
