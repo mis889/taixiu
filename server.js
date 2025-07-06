@@ -1,5 +1,6 @@
 const Fastify = require("fastify");
 const WebSocket = require("ws");
+const fetch = require("node-fetch"); // cần cài
 
 const fastify = Fastify({ logger: false });
 const PORT = process.env.PORT || 3000;
@@ -12,7 +13,7 @@ let ws = null;
 let reconnectInterval = 5000;
 let intervalCmd = null;
 
-const GEMINI_API_KEY = "AIzaSyCNmonlpE6yLsY_olGUPfN1K-dvQQuQmkw";
+const GEMINI_API_KEY = "AIzaSyCNmonlpE6yLsY_olGUPfN1K-dvQQuQmkw"; // Thay bằng API Key riêng nếu cần
 
 function sendCmd1005() {
   if (ws && ws.readyState === WebSocket.OPEN) {
@@ -33,7 +34,13 @@ function connectWebSocket() {
       "SC_xigtupou",
       "conga999",
       {
-        info: "{\"ipAddress\":\"2a09:bac5:d46e:25b9::3c2:39\",\"userId\":\"eff718a2-31db-4dd5-acb5-41f8cfd3e486\",\"username\":\"SC_miss88\",\"timestamp\":1751782535424,\"refreshToken\":\"22aadcb93490422b8d713f8776329a48.9adf6a5293d8443a888edd3ee802b9f4\"}",
+        info: JSON.stringify({
+          ipAddress: "2a09:bac5:d46e:25b9::3c2:39",
+          userId: "eff718a2-31db-4dd5-acb5-41f8cfd3e486",
+          username: "SC_miss88",
+          timestamp: Date.now(),
+          refreshToken: "22aadcb93490422b8d713f8776329a48.9adf6a5293d8443a888edd3ee802b9f4"
+        }),
         signature: "06FBBB7B38F79CBFCD34485EEEDF4104E542C26114984D0E9155073FD73E4C23CDCF1029B8F75B26427D641D5FE7BC4B231ABB0D2F6EBC76ED6EDE56B640ED161DEA92A6340AD911AD3D029D8A39E081EB9463BCA194C6B7230C89858723A9E3599868CAEC4D475C22266E4B299BA832D9E20BC3374679CA4F880593CF5D5845"
       }
     ];
@@ -53,7 +60,6 @@ function connectWebSocket() {
           d2: item.d2,
           d3: item.d3
         }));
-
         const latest = lastResults[0];
         const total = latest.d1 + latest.d2 + latest.d3;
         currentResult = total >= 11 ? "Tài" : "Xỉu";
@@ -76,22 +82,33 @@ function connectWebSocket() {
 
 connectWebSocket();
 
-// Dự đoán Tài/Xỉu bằng AI Gemini
-async function getPredictionFromGemini(pattern) {
-  const prompt = `Dãy kết quả Tài Xỉu gần đây là: ${pattern.replace(/T/g, "Tài").replace(/X/g, "Xỉu")}. Dự đoán kết quả tiếp theo là Tài hay Xỉu? Trả lời ngắn gọn: chỉ "Tài" hoặc "Xỉu".`;
+async function getPredictionFromGeminiWithDeepAnalysis(pattern) {
+  const prompt = `
+Dãy kết quả Tài Xỉu gần đây là: ${pattern.replace(/T/g, "Tài").replace(/X/g, "Xỉu")}.
+Bạn là chuyên gia phân tích thống kê trong lĩnh vực Tài Xỉu.
+Hãy phân tích theo định dạng sau (bắt buộc):
+
+{
+  "prediction": "Tài hoặc Xỉu",
+  "reason": "Lý do ngắn gọn",
+  "pattern_type": "Tên loại pattern (nếu có thể nhận diện)",
+  "confidence": "mức độ tin tưởng, ví dụ: 85%",
+  "gemini_response": "Toàn bộ phân tích đầy đủ, giải thích từng bước"
+}
+
+Lưu ý: Nếu không xác định được loại pattern, ghi rõ là 'Pattern hỗn hợp hoặc 1-1 bị gián đoạn'.
+  `;
 
   try {
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-pro:generateContent?key=${GEMINI_API_KEY}`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           contents: [
             {
-              parts: [
-                { text: prompt }
-              ]
+              parts: [{ text: prompt }]
             }
           ]
         })
@@ -99,18 +116,50 @@ async function getPredictionFromGemini(pattern) {
     );
 
     const data = await response.json();
-    const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || "Chờ";
-    return text.includes("Tài") ? "Tài" : text.includes("Xỉu") ? "Xỉu" : "Chờ";
-  } catch (error) {
-    console.error("Lỗi gọi AI Gemini:", error.message);
-    return "Chờ";
+    const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
+
+    const jsonMatch = text.match(/\{[^]*\}/);
+    if (jsonMatch) {
+      const parsed = JSON.parse(jsonMatch[0]);
+      return {
+        prediction: parsed.prediction?.includes("Tài") ? "Tài" :
+                   parsed.prediction?.includes("Xỉu") ? "Xỉu" : "Chờ",
+        pattern: "Pattern hỗn hợp - Phân tích bằng AI Gemini",
+        ai_analysis: {
+          reason: parsed.reason || "",
+          pattern_type: parsed.pattern_type || "Không rõ",
+          confidence: parsed.confidence || "Không rõ"
+        },
+        gemini_response: parsed.gemini_response || text
+      };
+    } else {
+      return {
+        prediction: "Chờ",
+        pattern: "Không rõ",
+        ai_analysis: {
+          reason: "Không đọc được phản hồi AI",
+          pattern_type: "Không xác định",
+          confidence: "0%"
+        },
+        gemini_response: text
+      };
+    }
+  } catch (e) {
+    return {
+      prediction: "Chờ",
+      pattern: "Không rõ",
+      ai_analysis: {
+        reason: "Lỗi khi gọi API Gemini",
+        pattern_type: "Không xác định",
+        confidence: "0%"
+      },
+      gemini_response: e.message
+    };
   }
 }
 
 fastify.get("/api/taixiu", async (request, reply) => {
-  const validResults = [...lastResults]
-    .reverse()
-    .filter(item => item.d1 && item.d2 && item.d3);
+  const validResults = [...lastResults].reverse().filter(item => item.d1 && item.d2 && item.d3);
 
   if (validResults.length < 1) {
     return {
@@ -118,7 +167,10 @@ fastify.get("/api/taixiu", async (request, reply) => {
       current_session: null,
       next_session: null,
       prediction: "Chờ",
-      used_pattern: ""
+      used_pattern: "",
+      pattern: "",
+      ai_analysis: {},
+      gemini_response: ""
     };
   }
 
@@ -137,14 +189,22 @@ fastify.get("/api/taixiu", async (request, reply) => {
     .reverse()
     .join("");
 
-  const prediction = await getPredictionFromGemini(pattern);
+  const {
+    prediction,
+    pattern: aiPattern,
+    ai_analysis,
+    gemini_response
+  } = await getPredictionFromGeminiWithDeepAnalysis(pattern);
 
   return {
     current_result: result,
     current_session: currentSession,
     next_session: nextSession,
     prediction,
-    used_pattern: pattern
+    used_pattern: pattern,
+    pattern: aiPattern,
+    ai_analysis,
+    gemini_response
   };
 });
 
