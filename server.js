@@ -52,6 +52,7 @@ function connectWebSocket() {
   });
 
   ws.on("message", (data) => {
+    console.log("📩 Dữ liệu nhận được:", data);
     try {
       const json = JSON.parse(data);
       if (Array.isArray(json) && json[1]?.htr) {
@@ -103,6 +104,7 @@ Bạn là chuyên gia AI. Hãy phân tích và trả lời dưới dạng JSON c
 
     const data = await res.json();
     const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
+    console.log("📩 Gemini raw response:", text);
     const jsonMatch = text.match(/\{[^]*\}/);
     if (jsonMatch) {
       const parsed = JSON.parse(jsonMatch[0]);
