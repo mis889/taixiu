@@ -88,15 +88,17 @@ function connectWebSocket() {
 connectWebSocket();
 
 async function getPredictionFromGemini(pattern) {
-  const prompt = `Dãy kết quả Tài Xỉu gần đây là: ${pattern.replace(/T/g, "Tài").replace(/X/g, "Xỉu")}.
-Bạn là chuyên gia AI. Hãy phân tích và trả lời dưới dạng JSON chuẩn:
+  const prompt = `Tôi cung cấp một chuỗi kết quả Tài Xỉu gồm 6 ván gần đây: ${pattern.replace(/T/g, "Tài").replace(/X/g, "Xỉu")}.
+Bạn là AI chuyên phân tích chuỗi kết quả Tài Xỉu.
+Hãy trả về JSON đúng chuẩn với định dạng sau:
 {
   "prediction": "Tài hoặc Xỉu",
-  "reason": "Lý do ngắn gọn",
-  "pattern_type": "Tên mẫu nếu có",
-  "confidence": "Mức độ tin tưởng (%)",
-  "gemini_response": "Phân tích chi tiết"
-}`;
+  "reason": "Ngắn gọn tại sao dự đoán vậy",
+  "pattern_type": "Tên mẫu nếu nhận ra",
+  "confidence": "Mức độ tự tin (%)",
+  "gemini_response": "Toàn bộ phân tích"
+}
+Chỉ trả về JSON.`;
 
   try {
     const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${GEMINI_API_KEY}`, {
@@ -168,3 +170,4 @@ fastify.listen({ port: PORT, host: "0.0.0.0" }, (err, address) => {
   }
   console.log(`🚀 Server chạy tại ${address}`);
 });
+
