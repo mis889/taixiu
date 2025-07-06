@@ -1,10 +1,12 @@
 const Fastify = require("fastify");
 const WebSocket = require("ws");
-const fetch = require("node-fetch"); // Đảm bảo bạn đã cài đặt: npm install node-fetch
+const fetch = require("node-fetch"); // <-- Đảm bảo dòng này TỒN TẠI và ĐÚNG CHÍNH TẢ.
+                                    // Nó sẽ import thư viện node-fetch để sử dụng hàm fetch.
 
 const fastify = Fastify({ logger: false });
 const PORT = process.env.PORT || 3000;
-const GEMINI_API_KEY = "AIzaSyC-aNjKTQ2XVaM3LPUWLjQtB67m5VXO58o"; // !!! Cảnh báo: KHÔNG hardcode API Key trong môi trường Production. Hãy sử dụng biến môi trường.
+const GEMINI_API_KEY = "AIzaSyC-aNjKTQ2XVaM3LPUWLjQtB67m5VXO58o"; // !!! Cảnh báo: KHÔNG hardcode API Key trong môi trường Production.
+                                                            // Thay vào đó, hãy sử dụng biến môi trường (ví dụ: process.env.GEMINI_API_KEY).
 
 let lastResults = [];
 let ws = null;
@@ -18,13 +20,13 @@ function sendCmd1005() {
 }
 
 function connectWebSocket() {
+  // URL WebSocket của bạn
   ws = new WebSocket("wss://websocket.azhkthg1.net/websocket?token=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJhbW91bnQiOjB9.p56b5g73I9wyoVu4db679bOvVeFJWVjGDg_ulBXyav8");
 
   ws.on("open", () => {
     console.log("✅ WebSocket đã kết nối");
 
-    // Payload xác thực này có vẻ chứa thông tin nhạy cảm (tokens, IPs).
-    // Đảm bảo bạn hiểu rõ mục đích và cách sử dụng của nó.
+    // Payload xác thực. Hãy đảm bảo thông tin này là hợp lệ và được quản lý an toàn.
     const authPayload = [
       1,
       "MiniGame",
@@ -51,7 +53,7 @@ function connectWebSocket() {
           d2: item.d2,
           d3: item.d3
         }));
-        // console.log("Dữ liệu lịch sử nhận được:", lastResults); // Để debug
+        // console.log("Dữ liệu lịch sử nhận được:", lastResults); // Có thể bật để debug dữ liệu đến từ WS
       }
     } catch (e) {
       console.error("❌ Lỗi khi parse JSON từ WebSocket:", e.message);
@@ -76,6 +78,7 @@ fastify.get("/api/axocuto", async (request, reply) => {
   // Lấy 3 kết quả gần nhất và đảo ngược để có thứ tự từ cũ đến mới
   const results = [...lastResults].reverse().filter(r => r.d1 && r.d2 && r.d3);
   if (results.length < 3) {
+    // Trả về lỗi nếu không đủ dữ liệu để phân tích pattern
     return {
       current_result: results.length > 0 ? (results[0].d1 + results[0].d2 + results[0].d3 >= 11 ? "Tài" : "Xỉu") : "N/A",
       current_session: results.length > 0 ? results[0].sid : "N/A",
@@ -98,7 +101,7 @@ fastify.get("/api/axocuto", async (request, reply) => {
   const patternArr = results.slice(0, 3).map(r => getResult(r.d1, r.d2, r.d3));
   const patternStr = patternArr.join(" - "); // Ví dụ: "Tài - Xỉu - Tài"
 
-  // Cải thiện Prompt để AI hiểu rõ hơn và trả về định dạng JSON
+  // Cải thiện Prompt để AI hiểu rõ hơn và TRẢ VỀ ĐỊNH DẠNG JSON
   const prompt = `Bạn là một chuyên gia phân tích game Tài Xỉu (Sic Bo). Trong game này, tổng điểm của 3 viên xúc xắc từ 3 đến 10 là "Xỉu", và từ 11 đến 18 là "Tài".
 
 Dựa trên lịch sử các kết quả gần đây nhất: "${patternStr}".
@@ -107,19 +110,19 @@ Hãy phân tích xu hướng của các kết quả này, xác định loại c�
 Sau đó, đưa ra dự đoán kết quả của phiên tiếp theo (chỉ là "Tài" hoặc "Xỉu").
 Cuối cùng, giải thích **chi tiết** lý do cho dự đoán của bạn, căn cứ vào pattern đã cho và các quy luật/xu hướng mà bạn nhận thấy.
 
-Vui lòng trả lời bằng tiếng Việt và theo định dạng JSON sau để dễ dàng xử lý:
+Vui lòng trả lời bằng tiếng Việt và **theo đúng định dạng JSON** sau để dễ dàng xử lý:
 {
   "prediction": "Tài", // Hoặc "Xỉu" - chỉ một trong hai giá trị này
   "reason": "Đây là lý do chi tiết cho dự đoán của tôi. [Phân tích xu hướng từ pattern]. [Xác định loại cầu đang xuất hiện]. [Dự đoán dựa trên quy luật thống kê hoặc khả năng đảo ngược nếu có]."
   "pattern_type_identified": "Cầu 1-1", // Ví dụ: "Cầu hỗn hợp", "Cầu bệt Tài", "Cầu 2-1-2", "Cầu không rõ ràng"
   "confidence_percentage": 85 // Giá trị số nguyên từ 0 đến 100
 }
-Nếu bạn không thể đưa ra dự đoán chắc chắn, hãy đặt confidence_percentage là 0 và prediction là "Không xác định".`;
+Nếu bạn không thể đưa ra dự đoán chắc chắn, hãy đặt "prediction": "Không xác định" và "confidence_percentage": 0.`;
 
   let geminiText = "Không có phản hồi từ AI";
   let extractedPrediction = "Không xác định";
   let extractedReason = "";
-  let extractedPatternType = "**Đang xuất hiện:** Với dữ liệu ngắn như vậy, rất khó để xác định một loại cầu cụ thể. Có thể xem đây là cầu hỗn hợp, hoặc một đoạn cầu bị gián đoạn."; // Default from image
+  let extractedPatternType = "**Đang xuất hiện:** Với dữ liệu ngắn như vậy, rất khó để xác định một loại cầu cụ thể. Có thể xem đây là cầu hỗn hợp, hoặc một đoạn cầu bị gián đoạn."; // Giá trị mặc định như ảnh
   let extractedConfidence = "0%";
 
   try {
@@ -141,12 +144,13 @@ Nếu bạn không thể đưa ra dự đoán chắc chắn, hãy đặt confide
     });
 
     if (!res.ok) {
+        // Xử lý lỗi HTTP (ví dụ: 401 Unauthorized, 403 Forbidden, 500 Server Error)
         const errorBody = await res.text();
         console.error(`❌ Lỗi HTTP từ AI Gemini: ${res.status} ${res.statusText}. Chi tiết: ${errorBody}`);
-        geminiText = `Lỗi từ AI Gemini: ${res.status} ${res.statusText}.`;
+        geminiText = `Lỗi từ AI Gemini: ${res.status} ${res.statusText}. Vui lòng kiểm tra API Key hoặc giới hạn truy cập.`;
     } else {
         const data = await res.json();
-        // console.log("Phản hồi nguyên thủy từ AI Gemini:", JSON.stringify(data, null, 2)); // Để debug phản hồi của AI
+        // console.log("Phản hồi nguyên thủy từ AI Gemini:", JSON.stringify(data, null, 2)); // Debug: xem toàn bộ phản hồi của AI
 
         if (data?.candidates?.[0]?.content?.parts?.[0]?.text) {
             const rawGeminiResponse = data.candidates[0].content.parts[0].text;
@@ -170,8 +174,8 @@ Nếu bạn không thể đưa ra dự đoán chắc chắn, hãy đặt confide
                 }
 
             } catch (jsonParseError) {
-                console.error("❌ Lỗi khi parse JSON từ phản hồi của AI. Cố gắng parse văn bản thuần túy:", jsonParseError.message);
-                // Fallback nếu AI không trả về JSON hợp lệ
+                console.error("❌ Lỗi khi parse JSON từ phản hồi của AI. Có thể AI không trả về JSON hợp lệ. Cố gắng parse văn bản thuần túy:", jsonParseError.message);
+                // Fallback: Nếu AI không trả về JSON hợp lệ, cố gắng parse từ văn bản thuần túy (ít đáng tin cậy hơn)
                 const predictionMatch = rawGeminiResponse.match(/Dự đoán:\s*(Tài|Xỉu)/);
                 if (predictionMatch && predictionMatch[1]) {
                     extractedPrediction = predictionMatch[1];
@@ -186,11 +190,11 @@ Nếu bạn không thể đưa ra dự đoán chắc chắn, hãy đặt confide
                     extractedConfidence = confidenceMatch[1] + "%";
                 }
 
-                // Với reason và pattern_type khi không có JSON, cần regex phức tạp hơn hoặc chấp nhận chung chung
-                // Để đơn giản, sẽ giữ nguyên default pattern_type và reason nếu không parse được JSON
+                // Đối với 'reason' và 'pattern_type' khi không có JSON, sẽ khó trích xuất chính xác
+                // và có thể sẽ giữ nguyên giá trị mặc định đã khai báo.
             }
         } else {
-            geminiText = "Phản hồi từ AI không chứa phần 'text' mong muốn.";
+            geminiText = "Phản hồi từ AI không chứa phần 'text' mong muốn (có thể do safety settings chặn hoặc lỗi nội bộ của AI).";
             console.error("Phản hồi từ AI không chứa phần 'text' mong muốn:", data);
         }
     }
@@ -221,7 +225,7 @@ const start = async () => {
     console.log(`🚀 Server Fastify chạy tại ${address}`);
   } catch (err) {
     console.error("❌ Lỗi khởi động server Fastify:", err);
-    process.exit(1);
+    process.exit(1); // Thoát ứng dụng nếu server không thể khởi động
   }
 };
 
