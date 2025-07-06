@@ -1,12 +1,13 @@
 const Fastify = require("fastify");
 const WebSocket = require("ws");
 
-// Tự động dùng fetch trong Node >= 18, nếu không thì require node-fetch
 let fetch = global.fetch;
 if (!fetch) fetch = require("node-fetch");
 
 const fastify = Fastify({ logger: false });
 const PORT = process.env.PORT || 3000;
+
+const GEMINI_API_KEY = "AIzaSyCNmonlpE6yLsY_olGUPfN1K-dvQQuQmkw";
 
 let lastResults = [];
 let currentResult = null;
@@ -16,10 +17,7 @@ let ws = null;
 let reconnectInterval = 5000;
 let intervalCmd = null;
 
-// API Key của Gemini AI (có thể thay bằng key riêng)
-const GEMINI_API_KEY = "AIzaSyCNmonlpE6yLsY_olGUPfN1K-dvQQuQmkw";
-
-// Gửi lệnh lấy kết quả mới
+// Gửi lệnh để nhận kết quả
 function sendCmd1005() {
   if (ws && ws.readyState === WebSocket.OPEN) {
     const payload = [6, "MiniGame", "taixiuPlugin", { cmd: 1005 }];
@@ -27,7 +25,7 @@ function sendCmd1005() {
   }
 }
 
-// Kết nối WebSocket lấy dữ liệu Tài Xỉu
+// Kết nối WebSocket
 function connectWebSocket() {
   ws = new WebSocket("wss://websocket.azhkthg1.net/websocket?token=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJhbW91bnQiOjB9.p56b5g73I9wyoVu4db679bOvVeFJWVjGDg_ulBXyav8");
 
@@ -75,7 +73,7 @@ function connectWebSocket() {
   });
 
   ws.on("close", () => {
-    console.warn("⚠️ WebSocket bị đóng, thử kết nối lại...");
+    console.warn("❌ WebSocket bị đóng, đang kết nối lại...");
     clearInterval(intervalCmd);
     setTimeout(connectWebSocket, reconnectInterval);
   });
@@ -88,140 +86,105 @@ function connectWebSocket() {
 
 connectWebSocket();
 
-// Hàm gọi AI Gemini để phân tích và dự đoán
-async function getPredictionFromGeminiWithDeepAnalysis(pattern) {
+// Gọi Gemini phân tích và dự đoán
+async function getPredictionFromGemini(pattern) {
   const prompt = `
 Dãy kết quả Tài Xỉu gần đây là: ${pattern.replace(/T/g, "Tài").replace(/X/g, "Xỉu")}.
-Bạn là chuyên gia phân tích thống kê trong lĩnh vực Tài Xỉu.
-Hãy phân tích theo định dạng sau (bắt buộc):
+Bạn là chuyên gia AI thống kê. Hãy trả lời JSON theo mẫu:
 
 {
   "prediction": "Tài hoặc Xỉu",
   "reason": "Lý do ngắn gọn",
-  "pattern_type": "Tên loại pattern (nếu có thể nhận diện)",
-  "confidence": "mức độ tin tưởng, ví dụ: 85%",
-  "gemini_response": "Toàn bộ phân tích đầy đủ, giải thích từng bước"
+  "pattern_type": "Tên mẫu nếu có",
+  "confidence": "Mức độ tin tưởng (%)",
+  "gemini_response": "Phân tích chi tiết"
 }
-
-Lưu ý: Nếu không xác định được loại pattern, ghi rõ là 'Pattern hỗn hợp hoặc 1-1 bị gián đoạn'.
-`;
+`.trim();
 
   try {
-    const response = await fetch(
+    const res = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-pro:generateContent?key=${GEMINI_API_KEY}`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          contents: [
-            {
-              parts: [{ text: prompt }]
-            }
-          ]
+          contents: [{ parts: [{ text: prompt }] }]
         })
       }
     );
 
-    const data = await response.json();
+    const data = await res.json();
     const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
-
     const jsonMatch = text.match(/\{[^]*\}/);
     if (jsonMatch) {
       const parsed = JSON.parse(jsonMatch[0]);
       return {
         prediction: parsed.prediction?.includes("Tài") ? "Tài" :
                    parsed.prediction?.includes("Xỉu") ? "Xỉu" : "Chờ",
-        pattern: parsed.pattern_type || "Không rõ",
+        pattern_type: parsed.pattern_type || "Không rõ",
         ai_analysis: {
           reason: parsed.reason || "",
-          pattern_type: parsed.pattern_type || "Không rõ",
-          confidence: parsed.confidence || "Không rõ"
+          confidence: parsed.confidence || "",
         },
         gemini_response: parsed.gemini_response || text
       };
-    } else {
-      return {
-        prediction: "Chờ",
-        pattern: "Không rõ",
-        ai_analysis: {
-          reason: "Không đọc được phản hồi AI",
-          pattern_type: "Không xác định",
-          confidence: "0%"
-        },
-        gemini_response: text
-      };
     }
+    return { prediction: "Chờ", pattern_type: "", ai_analysis: {}, gemini_response: text };
   } catch (e) {
-    return {
-      prediction: "Chờ",
-      pattern: "Không rõ",
-      ai_analysis: {
-        reason: "Lỗi khi gọi API Gemini",
-        pattern_type: "Không xác định",
-        confidence: "0%"
-      },
-      gemini_response: e.message
-    };
+    return { prediction: "Chờ", pattern_type: "", ai_analysis: {}, gemini_response: e.message };
   }
 }
 
-// Route API chính
+// API endpoint
 fastify.get("/api/taixiu", async (request, reply) => {
-  const validResults = [...lastResults].reverse().filter(item => item.d1 && item.d2 && item.d3);
-
-  if (validResults.length < 1) {
+  const valid = [...lastResults].reverse().filter(r => r.d1 && r.d2 && r.d3);
+  if (valid.length < 6) {
     return {
       current_result: null,
       current_session: null,
       next_session: null,
       prediction: "Chờ",
       used_pattern: "",
-      pattern: "",
+      pattern_type: "",
       ai_analysis: {},
       gemini_response: ""
     };
   }
 
-  const current = validResults[0];
-  const total = current.d1 + current.d2 + current.d3;
-  const result = total >= 11 ? "Tài" : "Xỉu";
+  const current = valid[0];
   const currentSession = current.sid;
-  const nextSession = currentSession + 1;
+  const nextSession = current.sid + 1;
 
-  const pattern = validResults
+  const usedPattern = valid
     .slice(0, 6)
-    .map(item => (item.d1 + item.d2 + item.d3 >= 11 ? "T" : "X"))
+    .map(r => (r.d1 + r.d2 + r.d3 >= 11 ? "T" : "X"))
     .reverse()
     .join("");
 
   const {
     prediction,
-    pattern: aiPattern,
+    pattern_type,
     ai_analysis,
     gemini_response
-  } = await getPredictionFromGeminiWithDeepAnalysis(pattern);
+  } = await getPredictionFromGemini(usedPattern);
 
   return {
-    current_result: result,
+    current_result: (current.d1 + current.d2 + current.d3 >= 11) ? "Tài" : "Xỉu",
     current_session: currentSession,
     next_session: nextSession,
     prediction,
-    used_pattern: pattern,
-    pattern: aiPattern,
+    used_pattern: usedPattern,
+    pattern_type,
     ai_analysis,
     gemini_response
   };
 });
 
 // Start server
-const start = async () => {
-  try {
-    const address = await fastify.listen({ port: PORT, host: "0.0.0.0" });
-    console.log(`🚀 Server chạy tại ${address}`);
-  } catch (err) {
+fastify.listen({ port: PORT, host: "0.0.0.0" }, (err, address) => {
+  if (err) {
     console.error(err);
     process.exit(1);
   }
-};
-
-start();
+  console.log(`🚀 Server chạy tại ${address}`);
+});
