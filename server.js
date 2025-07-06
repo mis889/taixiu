@@ -1,6 +1,5 @@
 const Fastify = require("fastify");
 const WebSocket = require("ws");
-const fetch = require("node-fetch");
 
 const fastify = Fastify({ logger: false });
 const PORT = process.env.PORT || 3000;
@@ -8,7 +7,6 @@ const GEMINI_API_KEY = "AIzaSyC-aNjKTQ2XVaM3LPUWLjQtB67m5VXO58o";
 
 let lastResults = [];
 let ws = null;
-let reconnectInterval = 5000;
 let intervalCmd = null;
 
 function sendCmd1005() {
@@ -57,13 +55,13 @@ function connectWebSocket() {
   });
 
   ws.on("close", () => {
-    console.warn("⚠️ WebSocket đóng. Kết nối lại sau 5s...");
+    console.warn("⚠️ WebSocket đóng. Thử lại sau 5s...");
     clearInterval(intervalCmd);
-    setTimeout(connectWebSocket, reconnectInterval);
+    setTimeout(connectWebSocket, 5000);
   });
 
   ws.on("error", (err) => {
-    console.error("❌ WebSocket lỗi:", err.message);
+    console.error("❌ Lỗi WebSocket:", err.message);
     ws.close();
   });
 }
@@ -99,7 +97,7 @@ Giải thích lý do, xác định loại pattern, và đưa ra % độ tin cậ
     });
 
     const data = await res.json();
-    geminiText = data?.candidates?.[0]?.content?.parts?.[0]?.text || "Không có phản hồi từ Gemini";
+    geminiText = data?.candidates?.[0]?.content?.parts?.[0]?.text || "Không có phản hồi từ AI";
 
   } catch (err) {
     geminiText = "Lỗi khi gọi AI Gemini: " + err.message;
