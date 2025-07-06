@@ -116,7 +116,7 @@ function predictByTotal(total) {
 }
 
 // === API PHÂN TÍCH ===
-fastify.get("/api/taixiu", async (request, reply) => {
+fastify.get("/api/toolaxosun", async (request, reply) => {
   const validResults = [...lastResults].reverse().filter(item => item.d1 && item.d2 && item.d3);
   if (validResults.length < 13) {
     return {
