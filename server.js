@@ -1,6 +1,6 @@
+// server.js
 const Fastify = require("fastify");
 const WebSocket = require("ws");
-const { Counter } = require("collections");
 
 const fastify = Fastify({ logger: false });
 const PORT = process.env.PORT || 3000;
@@ -16,19 +16,23 @@ function getTaiXiu(total) {
 
 function taiXiuStats(totals) {
   const types = totals.map(getTaiXiu);
-  const count = types.reduce((acc, t) => {
-    acc[t] = (acc[t] || 0) + 1;
-    return acc;
-  }, {});
-  const mostCommonTotal = totals.sort((a,b) =>
-    totals.filter(x => x === a).length - totals.filter(x => x === b).length
-  ).pop();
+  const count = { "Tài": 0, "Xỉu": 0 };
+  types.forEach(type => {
+    count[type]++;
+  });
+
+  const totalFreq = {};
+  totals.forEach(t => {
+    totalFreq[t] = (totalFreq[t] || 0) + 1;
+  });
+
+  const most_common_total = Object.entries(totalFreq).reduce((a, b) => a[1] > b[1] ? a : b)[0];
 
   return {
-    tai_count: count["Tài"] || 0,
-    xiu_count: count["Xỉu"] || 0,
-    most_common_total: mostCommonTotal,
-    most_common_type: (count["Tài"] || 0) >= (count["Xỉu"] || 0) ? "Tài" : "Xỉu"
+    tai_count: count["Tài"],
+    xiu_count: count["Xỉu"],
+    most_common_total: Number(most_common_total),
+    most_common_type: count["Tài"] >= count["Xỉu"] ? "Tài" : "Xỉu"
   };
 }
 
@@ -131,18 +135,12 @@ function duDoan(totals) {
 }
 
 function connectWebSocket() {
-  ws = new WebSocket("wss://websocket.azhkthg1.net/websocket?token=eyJ0eXAiOiJK...");
+  ws = new WebSocket("wss://websocket.azhkthg1.net/websocket?token=...your_token_here...");
 
   ws.on("open", () => {
     const authPayload = [
-      1,
-      "MiniGame",
-      "SC_xigtupou",
-      "conga999",
-      {
-        info: "...",
-        signature: "..."
-      }
+      1, "MiniGame", "SC_xigtupou", "conga999",
+      { info: "...", signature: "..." }
     ];
     ws.send(JSON.stringify(authPayload));
     clearInterval(intervalCmd);
