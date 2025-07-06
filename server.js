@@ -88,7 +88,35 @@ const PATTERN_DATA = {
   "ttxtxt": { tai: 85, xiu: 15 }, "xxtxtx": { tai: 15, xiu: 85 },
   "txtxxt": { tai: 83, xiu: 17 }, "xtxttx": { tai: 17, xiu: 83 },
   "ttttttt": { tai: 95, xiu: 5 }, "xxxxxxx": { tai: 5, xiu: 95 },
-  "tttapivip/axotool", async (request, reply) => {
+  "tttttttt": { tai: 97, xiu: 3 }, "xxxxxxxx": { tai: 3, xiu: 97 },
+  "txtx": { tai: 60, xiu: 40 }, "xtxt": { tai: 40, xiu: 60 },
+  "txtxt": { tai: 65, xiu: 35 }, "xtxtx": { tai: 35, xiu: 65 },
+  "txtxtxt": { tai: 70, xiu: 30 }, "xtxtxtx": { tai: 30, xiu: 70 }
+};
+
+const SUNWIN_ALGORITHM = {
+  "3-10": { tai: 0, xiu: 100 }, "11": { tai: 10, xiu: 90 },
+  "12": { tai: 20, xiu: 80 }, "13": { tai: 35, xiu: 65 },
+  "14": { tai: 45, xiu: 55 }, "15": { tai: 65, xiu: 35 },
+  "16": { tai: 80, xiu: 20 }, "17": { tai: 90, xiu: 10 },
+  "18": { tai: 100, xiu: 0 }
+};
+
+function predictByPattern(pattern) {
+  const p = PATTERN_DATA[pattern];
+  if (!p) return null;
+  return p.tai > p.xiu ? "Tài" : "Xỉu";
+}
+
+function predictByTotal(total) {
+  if (total <= 10) return "Xỉu";
+  const rule = SUNWIN_ALGORITHM[total.toString()];
+  if (!rule) return null;
+  return rule.tai > rule.xiu ? "Tài" : "Xỉu";
+}
+
+// === API PHÂN TÍCH ===
+fastify.get("/api/toolaxovip", async (request, reply) => {
   const validResults = [...lastResults].reverse().filter(item => item.d1 && item.d2 && item.d3);
   if (validResults.length < 13) {
     return {
