@@ -94,26 +94,15 @@ const PATTERN_DATA = {
   "txtxtxt": { tai: 70, xiu: 30 }, "xtxtxtx": { tai: 30, xiu: 70 }
 };
 
-const SUNWIN_ALGORITHM = {
-  "3-10": { tai: 0, xiu: 100 }, "11": { tai: 10, xiu: 90 },
-  "12": { tai: 20, xiu: 80 }, "13": { tai: 35, xiu: 65 },
-  "14": { tai: 45, xiu: 55 }, "15": { tai: 65, xiu: 35 },
-  "16": { tai: 80, xiu: 20 }, "17": { tai: 90, xiu: 10 },
-  "18": { tai: 100, xiu: 0 }
-};
-
 function predictByPattern(pattern) {
   const p = PATTERN_DATA[pattern];
   if (!p) return null;
   return p.tai > p.xiu ? "Tài" : "Xỉu";
 }
 
-function predictByTotal(total) {
-  if (total <= 10) return "Xỉu";
-  const rule = SUNWIN_ALGORITHM[total.toString()];
-  if (!rule) return null;
-  return rule.tai > rule.xiu ? "Tài" : "Xỉu";
-}
+// === ĐẾM ĐÚNG SAI TOÀN CỤC ===
+let correctCount = 0;
+let totalCount = 0;
 
 // === API PHÂN TÍCH ===
 fastify.get("/api/toolaxovip", async (request, reply) => {
@@ -126,6 +115,7 @@ fastify.get("/api/toolaxovip", async (request, reply) => {
       phien_moi: null,
       du_doan: null,
       thanh_cau: "",
+      lich_su: [],
       id: "@axobantool"
     };
   }
@@ -146,6 +136,18 @@ fastify.get("/api/toolaxovip", async (request, reply) => {
     duDoan = ketQua === "Tài" ? "Xỉu" : "Tài";
   }
 
+  totalCount++;
+  if (duDoan === ketQua) correctCount++;
+
+  const lichSu = [
+    {
+      phien: phienCu,
+      du_doan: duDoan,
+      ket_qua: ketQua,
+      dung: `${correctCount}/${totalCount}`
+    }
+  ];
+
   return {
     phien_cu: phienCu,
     ket_qua: ketQua,
@@ -153,6 +155,7 @@ fastify.get("/api/toolaxovip", async (request, reply) => {
     phien_moi: phienMoi,
     du_doan: duDoan,
     thanh_cau: thanhCau,
+    lich_su: lichSu,
     id: "@axobantool"
   };
 });
