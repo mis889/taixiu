@@ -1,18 +1,28 @@
 {
-  "name": "taixiu-ai-gemini",
+  "name": "your-project-name",
   "version": "1.0.0",
-  "description": "API dự đoán tài xỉu bằng WebSocket + AI Gemini",
+  "description": "API Backend for Tai Xiu prediction using Fastify and Gemini AI.",
   "main": "server.js",
-  "type": "commonjs",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "keywords": ["fastify", "websocket", "taixiu", "gemini", "ai"],
-  "author": "pc",
+  "keywords": [
+    "taixiu",
+    "fastify",
+    "websocket",
+    "gemini-ai",
+    "prediction"
+  ],
+  "author": "Your Name or Company Name",
   "license": "MIT",
   "dependencies": {
-    "fastify": "^4.25.1",
-    "ws": "^8.17.0"
+    "fastify": "^4.27.0",
+    "ws": "^8.18.0",
+    "node-fetch": "^3.3.2"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.4"
   },
   "engines": {
     "node": ">=18.0.0"
