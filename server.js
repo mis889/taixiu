@@ -1,12 +1,15 @@
 const Fastify = require("fastify");
 const WebSocket = require("ws");
-const fetch = require("node-fetch"); // <-- Dòng này phải có và đúng ở đây
+const fetch = require("node-fetch"); // <-- Dòng này phải có và ĐÚNG CHÍNH TẢ.
+                                    // Nó đảm bảo hàm 'fetch' có sẵn để gọi API bên ngoài.
 
 const fastify = Fastify({ logger: false });
 const PORT = process.env.PORT || 3000;
+
 // !!! Cảnh báo: KHÔNG hardcode API Key trong môi trường Production.
-// Thay vào đó, hãy sử dụng biến môi trường: process.env.GEMINI_API_KEY
-// Đảm bảo GEMINI_API_KEY của bạn hợp lệ và có quyền truy cập Gemini 2.0 Flash.
+// Bạn nên sử dụng biến môi trường (Environment Variable) trên Render:
+// Ví dụ: const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+// Sau đó, thêm GEMINI_API_KEY vào phần Environment Variables trong Settings của dịch vụ Render.
 const GEMINI_API_KEY = "AIzaSyC-aNjKTQ2XVaM3LPUWLjQtB67m5VXO58o";
 
 // --- Biến toàn cục để lưu trữ dữ liệu và trạng thái WebSocket ---
@@ -142,7 +145,7 @@ Nếu bạn không thể đưa ra dự đoán chắc chắn, hãy đặt "predic
 
   try {
     console.log("➡️ Đang gọi API Gemini...");
-    const res = await fetch("[https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent](https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent)", {
+    const res = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -154,7 +157,7 @@ Nếu bạn không thể đưa ra dự đoán chắc chắn, hãy đặt "predic
           { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
           { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
           { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
-          { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" },
+          { category: "HARm_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" },
         ]
       })
     });
@@ -166,7 +169,7 @@ Nếu bạn không thể đưa ra dự đoán chắc chắn, hãy đặt "predic
         geminiText = `Lỗi từ AI Gemini: ${res.status} ${res.statusText}. Chi tiết: ${errorBody.substring(0, 200)}. Vui lòng kiểm tra API Key hoặc giới hạn truy cập.`;
     } else {
         const data = await res.json();
-        // Log toàn bộ phản hồi của AI để debug cấu trúc nếu có vấn đề
+        // Console.log toàn bộ phản hồi của AI để debug cấu trúc nếu có vấn đề
         // Dòng này cực kỳ quan trọng để bạn xem AI trả về cái gì
         console.log("📦 Phản hồi nguyên thủy từ AI Gemini (JSON):", JSON.stringify(data, null, 2)); 
 
