@@ -1,6 +1,9 @@
 const Fastify = require("fastify");
 const WebSocket = require("ws");
-const fetch = require("node-fetch"); // cần cài
+
+// Tự động dùng fetch trong Node >= 18, nếu không thì require node-fetch
+let fetch = global.fetch;
+if (!fetch) fetch = require("node-fetch");
 
 const fastify = Fastify({ logger: false });
 const PORT = process.env.PORT || 3000;
@@ -13,8 +16,10 @@ let ws = null;
 let reconnectInterval = 5000;
 let intervalCmd = null;
 
-const GEMINI_API_KEY = "AIzaSyCNmonlpE6yLsY_olGUPfN1K-dvQQuQmkw"; // Thay bằng API Key riêng nếu cần
+// API Key của Gemini AI (có thể thay bằng key riêng)
+const GEMINI_API_KEY = "AIzaSyCNmonlpE6yLsY_olGUPfN1K-dvQQuQmkw";
 
+// Gửi lệnh lấy kết quả mới
 function sendCmd1005() {
   if (ws && ws.readyState === WebSocket.OPEN) {
     const payload = [6, "MiniGame", "taixiuPlugin", { cmd: 1005 }];
@@ -22,6 +27,7 @@ function sendCmd1005() {
   }
 }
 
+// Kết nối WebSocket lấy dữ liệu Tài Xỉu
 function connectWebSocket() {
   ws = new WebSocket("wss://websocket.azhkthg1.net/websocket?token=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJhbW91bnQiOjB9.p56b5g73I9wyoVu4db679bOvVeFJWVjGDg_ulBXyav8");
 
@@ -82,6 +88,7 @@ function connectWebSocket() {
 
 connectWebSocket();
 
+// Hàm gọi AI Gemini để phân tích và dự đoán
 async function getPredictionFromGeminiWithDeepAnalysis(pattern) {
   const prompt = `
 Dãy kết quả Tài Xỉu gần đây là: ${pattern.replace(/T/g, "Tài").replace(/X/g, "Xỉu")}.
@@ -97,7 +104,7 @@ Hãy phân tích theo định dạng sau (bắt buộc):
 }
 
 Lưu ý: Nếu không xác định được loại pattern, ghi rõ là 'Pattern hỗn hợp hoặc 1-1 bị gián đoạn'.
-  `;
+`;
 
   try {
     const response = await fetch(
@@ -124,7 +131,7 @@ Lưu ý: Nếu không xác định được loại pattern, ghi rõ là 'Pattern
       return {
         prediction: parsed.prediction?.includes("Tài") ? "Tài" :
                    parsed.prediction?.includes("Xỉu") ? "Xỉu" : "Chờ",
-        pattern: "Pattern hỗn hợp - Phân tích bằng AI Gemini",
+        pattern: parsed.pattern_type || "Không rõ",
         ai_analysis: {
           reason: parsed.reason || "",
           pattern_type: parsed.pattern_type || "Không rõ",
@@ -158,6 +165,7 @@ Lưu ý: Nếu không xác định được loại pattern, ghi rõ là 'Pattern
   }
 }
 
+// Route API chính
 fastify.get("/api/taixiu", async (request, reply) => {
   const validResults = [...lastResults].reverse().filter(item => item.d1 && item.d2 && item.d3);
 
@@ -182,10 +190,7 @@ fastify.get("/api/taixiu", async (request, reply) => {
 
   const pattern = validResults
     .slice(0, 6)
-    .map(item => {
-      const sum = item.d1 + item.d2 + item.d3;
-      return sum >= 11 ? "T" : "X";
-    })
+    .map(item => (item.d1 + item.d2 + item.d3 >= 11 ? "T" : "X"))
     .reverse()
     .join("");
 
@@ -208,10 +213,11 @@ fastify.get("/api/taixiu", async (request, reply) => {
   };
 });
 
+// Start server
 const start = async () => {
   try {
     const address = await fastify.listen({ port: PORT, host: "0.0.0.0" });
-    console.log(`🚀 Fastify server đang chạy tại ${address}`);
+    console.log(`🚀 Server chạy tại ${address}`);
   } catch (err) {
     console.error(err);
     process.exit(1);
