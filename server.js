@@ -1,4 +1,3 @@
-// server.js
 const Fastify = require("fastify");
 const WebSocket = require("ws");
 
@@ -24,7 +23,7 @@ function connectWebSocket() {
   ws = new WebSocket("wss://websocket.azhkthg1.net/websocket?token=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJhbW91bnQiOjB9.p56b5g73I9wyoVu4db679bOvVeFJWVjGDg_ulBXyav8");
 
   ws.on("open", () => {
-    console.log("\u2714\uFE0F Kết nối WebSocket thành công");
+    console.log("✅ Kết nối WebSocket thành công");
     const authPayload = [
       1,
       "MiniGame",
@@ -32,8 +31,7 @@ function connectWebSocket() {
       "conga999",
       {
         info: "{\"ipAddress\":\"2a09:bac5:d46e:25b9::3c2:39\",\"userId\":\"eff718a2-31db-4dd5-acb5-41f8cfd3e486\",\"username\":\"SC_miss88\",\"timestamp\":1751782535424,\"refreshToken\":\"22aadcb93490422b8d713f8776329a48.9adf6a5293d8443a888edd3ee802b9f4\"}",
-        signature:
-          "06FBBB7B38F79CBFCD34485EEEDF4104E542C26114984D0E9155073FD73E4C23CDCF1029B8F75B26427D641D5FE7BC4B231ABB0D2F6EBC76ED6EDE56B640ED161DEA92A6340AD911AD3D029D8A39E081EB9463BCA194C6B7230C89858723A9E3599868CAEC4D475C22266E4B299BA832D9E20BC3374679CA4F880593CF5D5845"
+        signature: "06FBBB7B38F79CBFCD34485EEEDF4104E542C26114984D0E9155073FD73E4C23CDCF1029B8F75B26427D641D5FE7BC4B231ABB0D2F6EBC76ED6EDE56B640ED161DEA92A6340AD911AD3D029D8A39E081EB9463BCA194C6B7230C89858723A9E3599868CAEC4D475C22266E4B299BA832D9E20BC3374679CA4F880593CF5D5845"
       }
     ];
     ws.send(JSON.stringify(authPayload));
@@ -61,19 +59,20 @@ function connectWebSocket() {
   });
 
   ws.on("close", () => {
-    console.warn("\u26A0\uFE0F WebSocket đóng, thử kết nối lại...");
+    console.warn("⚠️ WebSocket đóng, thử kết nối lại...");
     clearInterval(intervalCmd);
     setTimeout(connectWebSocket, reconnectInterval);
   });
 
   ws.on("error", (err) => {
-    console.error("\u274C Lỗi WebSocket:", err.message);
+    console.error("❌ Lỗi WebSocket:", err.message);
     ws.close();
   });
 }
 
 connectWebSocket();
 
+// Thuật toán pattern
 const PATTERN_DATA = {
   "ttxttx": { tai: 80, xiu: 20 }, "xxttxx": { tai: 20, xiu: 80 },
   "ttxxtt": { tai: 75, xiu: 25 }, "txtxt": { tai: 60, xiu: 40 },
@@ -95,6 +94,7 @@ const PATTERN_DATA = {
   "txtxtxt": { tai: 70, xiu: 30 }, "xtxtxtx": { tai: 30, xiu: 70 }
 };
 
+// Dự đoán theo tổng
 const SUNWIN_ALGORITHM = {
   "3-10": { tai: 0, xiu: 100 }, "11": { tai: 10, xiu: 90 },
   "12": { tai: 20, xiu: 80 }, "13": { tai: 35, xiu: 65 },
@@ -116,9 +116,10 @@ function predictByTotal(total) {
   return rule.tai > rule.xiu ? "Tài" : "Xỉu";
 }
 
+// API phân tích
 fastify.get("/api/taixiu", async (request, reply) => {
   const validResults = [...lastResults].reverse().filter(item => item.d1 && item.d2 && item.d3);
-  if (validResults.length < 6) {
+  if (validResults.length < 13) {
     return {
       current_result: null,
       current_session: null,
@@ -134,7 +135,7 @@ fastify.get("/api/taixiu", async (request, reply) => {
   const currentSession = current.sid;
   const nextSession = currentSession + 1;
 
-  const pattern = validResults.slice(0, 6).map(item => {
+  const pattern = validResults.slice(0, 13).map(item => {
     const sum = item.d1 + item.d2 + item.d3;
     return sum >= 11 ? "t" : "x";
   }).reverse().join("");
@@ -153,10 +154,11 @@ fastify.get("/api/taixiu", async (request, reply) => {
   };
 });
 
+// Start server
 const start = async () => {
   try {
     const address = await fastify.listen({ port: PORT, host: "0.0.0.0" });
-    console.log(`\uD83D\uDE80 Server chạy tại ${address}`);
+    console.log(`🚀 Server chạy tại ${address}`);
   } catch (err) {
     console.error(err);
     process.exit(1);
