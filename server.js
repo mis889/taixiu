@@ -1,4 +1,3 @@
-// server.js
 const Fastify = require("fastify");
 const WebSocket = require("ws");
 
@@ -10,6 +9,7 @@ let ws = null;
 let reconnectInterval = 5000;
 let intervalCmd = null;
 
+// ==== DỮ LIỆU PATTERN 13 PHIÊN ====
 const PATTERN_DATA = {
   "ttxttx": { tai: 80, xiu: 20 },
   "xxttxx": { tai: 20, xiu: 80 },
@@ -48,6 +48,7 @@ const PATTERN_DATA = {
   "xtxtxtx": { tai: 30, xiu: 70 }
 };
 
+// ==== THUẬT TOÁN THEO TỔNG ====
 const SUNWIN_ALGORITHM = {
   "3-10": { tai: 0, xiu: 100 },
   "11": { tai: 10, xiu: 90 },
@@ -135,7 +136,7 @@ function duDoanSunwin200kVip(totals) {
   };
 }
 
-// WebSocket connect
+// === KẾT NỐI WEBSOCKET ===
 function sendCmd1005() {
   if (ws && ws.readyState === WebSocket.OPEN) {
     const payload = [6, "MiniGame", "taixiuPlugin", { cmd: 1005 }];
@@ -191,6 +192,7 @@ function connectWebSocket() {
 
 connectWebSocket();
 
+// === API TÀI XỈU ===
 fastify.get("/api/taixiu", async (request, reply) => {
   const validResults = [...lastResults]
     .reverse()
@@ -204,6 +206,7 @@ fastify.get("/api/taixiu", async (request, reply) => {
   return duDoanSunwin200kVip(totals);
 });
 
+// === START SERVER ===
 fastify.listen({ port: PORT, host: "0.0.0.0" }, (err, address) => {
   if (err) {
     console.error(err);
