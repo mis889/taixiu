@@ -1,6 +1,5 @@
 const Fastify = require("fastify");
 const WebSocket = require("ws");
-const fetch = require("node-fetch");
 
 const fastify = Fastify({ logger: false });
 const PORT = process.env.PORT || 3000;
@@ -26,7 +25,7 @@ function connectWebSocket() {
   ws = new WebSocket("wss://websocket.azhkthg1.net/websocket?token=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJhbW91bnQiOjB9.p56b5g73I9wyoVu4db679bOvVeFJWVjGDg_ulBXyav8");
 
   ws.on("open", () => {
-    console.log("Đã kết nối WebSocket");
+    console.log("✅ Đã kết nối WebSocket");
 
     const authPayload = [
       1,
@@ -64,42 +63,48 @@ function connectWebSocket() {
   });
 
   ws.on("close", () => {
-    console.warn("WebSocket bị đóng, thử kết nối lại...");
+    console.warn("⚠️ WebSocket bị đóng, thử kết nối lại...");
     clearInterval(intervalCmd);
     setTimeout(connectWebSocket, reconnectInterval);
   });
 
   ws.on("error", (err) => {
-    console.error("Lỗi WebSocket:", err.message);
+    console.error("❌ Lỗi WebSocket:", err.message);
     ws.close();
   });
 }
 
 connectWebSocket();
 
+// Dự đoán Tài/Xỉu bằng AI Gemini
 async function getPredictionFromGemini(pattern) {
   const prompt = `Dãy kết quả Tài Xỉu gần đây là: ${pattern.replace(/T/g, "Tài").replace(/X/g, "Xỉu")}. Dự đoán kết quả tiếp theo là Tài hay Xỉu? Trả lời ngắn gọn: chỉ "Tài" hoặc "Xỉu".`;
 
-  const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [
-          {
-            parts: [
-              { text: prompt }
-            ]
-          }
-        ]
-      })
-    }
-  );
+  try {
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [
+            {
+              parts: [
+                { text: prompt }
+              ]
+            }
+          ]
+        })
+      }
+    );
 
-  const data = await response.json();
-  const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || "Chờ";
-  return text.includes("Tài") ? "Tài" : text.includes("Xỉu") ? "Xỉu" : "Chờ";
+    const data = await response.json();
+    const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || "Chờ";
+    return text.includes("Tài") ? "Tài" : text.includes("Xỉu") ? "Xỉu" : "Chờ";
+  } catch (error) {
+    console.error("Lỗi gọi AI Gemini:", error.message);
+    return "Chờ";
+  }
 }
 
 fastify.get("/api/taixiu", async (request, reply) => {
@@ -146,7 +151,7 @@ fastify.get("/api/taixiu", async (request, reply) => {
 const start = async () => {
   try {
     const address = await fastify.listen({ port: PORT, host: "0.0.0.0" });
-    console.log(`Fastify server đang chạy tại ${address}`);
+    console.log(`🚀 Fastify server đang chạy tại ${address}`);
   } catch (err) {
     console.error(err);
     process.exit(1);
