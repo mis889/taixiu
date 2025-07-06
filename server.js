@@ -1,3 +1,4 @@
+// server.js
 const Fastify = require("fastify");
 const WebSocket = require("ws");
 
@@ -140,9 +141,10 @@ function connectWebSocket() {
   ws = new WebSocket("wss://websocket.azhkthg1.net/websocket?token=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJhbW91bnQiOjB9.p56b5g73I9wyoVu4db679bOvVeFJWVjGDg_ulBXyav8");
 
   ws.on("open", () => {
+    console.log("✅ WebSocket đã kết nối");
     const authPayload = [
       1, "MiniGame", "SC_xigtupou", "conga999",
-      { info: "...", signature: "..." }
+      { info: "fake-info", signature: "fake-signature" }
     ];
     ws.send(JSON.stringify(authPayload));
     clearInterval(intervalCmd);
@@ -160,11 +162,18 @@ function connectWebSocket() {
           sid: item.sid,
           total: item.d1 + item.d2 + item.d3
         }));
+        console.log("Đã nhận được:", lastResults.length, "kết quả");
       }
-    } catch (e) {}
+    } catch (e) {
+      console.error("Lỗi xử lý message:", e);
+    }
   });
 
-  ws.on("close", () => setTimeout(connectWebSocket, reconnectInterval));
+  ws.on("close", () => {
+    console.warn("⚠️ WebSocket bị đóng, đang thử lại...");
+    setTimeout(connectWebSocket, reconnectInterval);
+  });
+
   ws.on("error", () => ws.close());
 }
 
@@ -172,7 +181,7 @@ connectWebSocket();
 
 fastify.get("/api/taixiu", async () => {
   const valid = [...lastResults].reverse().map(r => r.total).filter(Boolean);
-  const pattern = valid.slice(0, 13).map(getTaiXiu).join("");
+  const pattern = valid.length >= 1 ? valid.slice(0, 13).map(getTaiXiu).join("") : "";
   const info = duDoan(valid);
 
   return {
@@ -185,5 +194,5 @@ fastify.get("/api/taixiu", async () => {
 });
 
 fastify.listen({ port: PORT, host: "0.0.0.0" }, () => {
-  console.log("Server đang chạy tại http://localhost:" + PORT);
+  console.log("🚀 Server đang chạy tại http://localhost:" + PORT);
 });
