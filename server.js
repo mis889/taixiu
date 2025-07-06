@@ -15,6 +15,15 @@ function getTaiXiu(total) {
 }
 
 function taiXiuStats(totals) {
+  if (totals.length === 0) {
+    return {
+      tai_count: 0,
+      xiu_count: 0,
+      most_common_total: null,
+      most_common_type: null
+    };
+  }
+
   const types = totals.map(getTaiXiu);
   const count = { "Tài": 0, "Xỉu": 0 };
   types.forEach(type => {
@@ -57,7 +66,7 @@ function rule_sandwich(last3, lastResult) {
 }
 
 function rule_special_numbers(last3, lastResult) {
-  const special = [7,9,10];
+  const special = [7, 9, 10];
   const count = last3.filter(x => special.includes(x)).length;
   if (count >= 2) {
     return {
