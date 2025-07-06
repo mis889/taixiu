@@ -72,7 +72,7 @@ function connectWebSocket() {
 
 connectWebSocket();
 
-// Thuật toán pattern
+// === THUẬT TOÁN PHÂN TÍCH ===
 const PATTERN_DATA = {
   "ttxttx": { tai: 80, xiu: 20 }, "xxttxx": { tai: 20, xiu: 80 },
   "ttxxtt": { tai: 75, xiu: 25 }, "txtxt": { tai: 60, xiu: 40 },
@@ -88,73 +88,48 @@ const PATTERN_DATA = {
   "ttxtxt": { tai: 85, xiu: 15 }, "xxtxtx": { tai: 15, xiu: 85 },
   "txtxxt": { tai: 83, xiu: 17 }, "xtxttx": { tai: 17, xiu: 83 },
   "ttttttt": { tai: 95, xiu: 5 }, "xxxxxxx": { tai: 5, xiu: 95 },
-  "tttttttt": { tai: 97, xiu: 3 }, "xxxxxxxx": { tai: 3, xiu: 97 },
-  "txtx": { tai: 60, xiu: 40 }, "xtxt": { tai: 40, xiu: 60 },
-  "txtxt": { tai: 65, xiu: 35 }, "xtxtx": { tai: 35, xiu: 65 },
-  "txtxtxt": { tai: 70, xiu: 30 }, "xtxtxtx": { tai: 30, xiu: 70 }
-};
-
-// Dự đoán theo tổng
-const SUNWIN_ALGORITHM = {
-  "3-10": { tai: 0, xiu: 100 }, "11": { tai: 10, xiu: 90 },
-  "12": { tai: 20, xiu: 80 }, "13": { tai: 35, xiu: 65 },
-  "14": { tai: 45, xiu: 55 }, "15": { tai: 65, xiu: 35 },
-  "16": { tai: 80, xiu: 20 }, "17": { tai: 90, xiu: 10 },
-  "18": { tai: 100, xiu: 0 }
-};
-
-function predictByPattern(pattern) {
-  const p = PATTERN_DATA[pattern];
-  if (!p) return null;
-  return p.tai > p.xiu ? "Tài" : "Xỉu";
-}
-
-function predictByTotal(total) {
-  if (total <= 10) return "Xỉu";
-  const rule = SUNWIN_ALGORITHM[total.toString()];
-  if (!rule) return null;
-  return rule.tai > rule.xiu ? "Tài" : "Xỉu";
-}
-
-// API phân tích
-fastify.get("/api/taixiu", async (request, reply) => {
+  "tttapivip/axotool", async (request, reply) => {
   const validResults = [...lastResults].reverse().filter(item => item.d1 && item.d2 && item.d3);
   if (validResults.length < 13) {
     return {
-      current_result: null,
-      current_session: null,
-      next_session: null,
-      prediction: null,
-      used_pattern: ""
+      phien_cu: null,
+      ket_qua: null,
+      xuc_xac: [],
+      phien_moi: null,
+      du_doan: null,
+      thanh_cau: "",
+      id: "@axobantool"
     };
   }
 
   const current = validResults[0];
   const total = current.d1 + current.d2 + current.d3;
-  const result = total >= 11 ? "Tài" : "Xỉu";
-  const currentSession = current.sid;
-  const nextSession = currentSession + 1;
+  const ketQua = total >= 11 ? "Tài" : "Xỉu";
+  const phienCu = current.sid;
+  const phienMoi = phienCu + 1;
 
-  const pattern = validResults.slice(0, 13).map(item => {
+  const thanhCau = validResults.slice(0, 13).map(item => {
     const sum = item.d1 + item.d2 + item.d3;
     return sum >= 11 ? "t" : "x";
   }).reverse().join("");
 
-  let prediction = predictByPattern(pattern);
-  if (!prediction) {
-    prediction = result === "Tài" ? "Xỉu" : "Tài";
+  let duDoan = predictByPattern(thanhCau);
+  if (!duDoan) {
+    duDoan = ketQua === "Tài" ? "Xỉu" : "Tài";
   }
 
   return {
-    current_result: result,
-    current_session: currentSession,
-    next_session: nextSession,
-    prediction,
-    used_pattern: pattern
+    phien_cu: phienCu,
+    ket_qua: ketQua,
+    xuc_xac: [current.d1, current.d2, current.d3],
+    phien_moi: phienMoi,
+    du_doan: duDoan,
+    thanh_cau: thanhCau,
+    id: "@axobantool"
   };
 });
 
-// Start server
+// === KHỞI ĐỘNG SERVER ===
 const start = async () => {
   try {
     const address = await fastify.listen({ port: PORT, host: "0.0.0.0" });
