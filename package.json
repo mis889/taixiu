@@ -1,5 +1,5 @@
 {
-  "name": "your-project-name",
+  "name": "taixiu-prediction-api",
   "version": "1.0.0",
   "description": "API Backend for Tai Xiu prediction using Fastify and Gemini AI.",
   "main": "server.js",
@@ -14,7 +14,7 @@
     "gemini-ai",
     "prediction"
   ],
-  "author": "Your Name or Company Name",
+  "author": "Your Name",
   "license": "MIT",
   "dependencies": {
     "fastify": "^4.27.0",
