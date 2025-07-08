@@ -9,7 +9,7 @@ let hitWS = null;
 let hitInterval = null;
 
 function connectHitWebSocket() {
-  hitWS = new WebSocket("wss://mynygwais.hytsocesk.com/websocket");
+  hitWS = new WebSocket("wss://carkgwaiz.hytsocesk.com/websocket");
 
   hitWS.on("open", () => {
     const authPayload = [
