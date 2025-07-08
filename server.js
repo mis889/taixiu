@@ -139,6 +139,8 @@ fastify.get("/api/hit", async (request, reply) => {
       next_session: null,
       prediction: null,
       used_pattern: "",
+      confidence: "0%",
+      md5: null
     };
   }
 
@@ -147,7 +149,9 @@ fastify.get("/api/hit", async (request, reply) => {
   const result = total >= 11 ? "Tài" : "Xỉu";
   const currentSession = current.sid;
   const nextSession = currentSession + 1;
-  const prediction = result === "Tài" ? "Xỉu" : "Tài";
+
+  const dummyMD5 = crypto.createHash("md5").update(`${current.d1}${current.d2}${current.d3}`).digest("hex");
+  const { tai, xiu } = analyzeMD5Advanced(dummyMD5);
 
   const pattern = validResults
     .slice(0, 6)
@@ -158,16 +162,14 @@ fastify.get("/api/hit", async (request, reply) => {
     .reverse()
     .join("");
 
-  const dummyMD5 = crypto.createHash("md5").update(`${current.d1}${current.d2}${current.d3}`).digest("hex");
-  const { tai, xiu } = analyzeMD5Advanced(dummyMD5);
-
   return {
     current_result: result,
     current_session: currentSession,
     next_session: nextSession,
     prediction: tai > xiu ? "Tài" : "Xỉu",
     used_pattern: pattern,
-    confidence: `${Math.max(tai, xiu).toFixed(2)}%`
+    confidence: `${Math.max(tai, xiu).toFixed(2)}%`,
+    md5: dummyMD5
   };
 });
 
