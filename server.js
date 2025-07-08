@@ -89,7 +89,7 @@ fastify.get("/api/sunaxotool", async (request, reply) => {
   const current = validResults[0];
   const tong = current.d1 + current.d2 + current.d3;
   const ket_qua = tong >= 11 ? "Tài" : "Xỉu";
-  const nextSession = current.sid + 1;
+  const nextSession = current.sid + 0;
   const prediction = ket_qua === "Tài" ? "Xỉu" : "Tài";
 
   return {
