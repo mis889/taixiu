@@ -11,18 +11,18 @@ let hitWS = null;
 let hitIntervalCmd = null;
 const hitReconnectInterval = 5000;
 
-// Gửi CMD 2007 để lấy kết quả Tài Xỉu
-function sendHitCmd2007() {
+// Gửi lệnh CMD 2006
+function sendHitCmd2006() {
   if (hitWS && hitWS.readyState === WebSocket.OPEN) {
-    const payload = [6, "MiniGame", "taixiuKCBPlugin", { cmd: 2007 }];
+    const payload = [6, "MiniGame", "taixiuPlugin", { cmd: 2006 }];
     hitWS.send(JSON.stringify(payload));
-    console.log("📤 Gửi CMD 2007");
+    console.log("📤 Gửi CMD 2006");
   }
 }
 
 function connectHitWebSocket() {
   console.log("🔌 Kết nối WebSocket HIT...");
-  hitWS = new WebSocket("wss://mynygwais.hytsocesk.com/websocket"); // ĐÃ XOÁ \r
+  hitWS = new WebSocket("wss://mynygwais.hytsocesk.com/websocket");
 
   hitWS.on("open", () => {
     console.log("✅ Đã kết nối HIT");
@@ -42,14 +42,19 @@ function connectHitWebSocket() {
     console.log("📤 Gửi payload xác thực");
 
     clearInterval(hitIntervalCmd);
-    hitIntervalCmd = setInterval(sendHitCmd2007, 5000);
+    hitIntervalCmd = setInterval(sendHitCmd2006, 5000);
   });
 
   hitWS.on("message", (data) => {
+    const raw = data.toString();
+    console.log("📩 Dữ liệu thô về:", raw);
+
     try {
-      const json = JSON.parse(data);
+      const json = JSON.parse(raw);
+
       if (Array.isArray(json) && json[1]?.htr?.length > 0) {
         const latest = json[1].htr[0];
+
         if (
           typeof latest.d1 === "number" &&
           typeof latest.d2 === "number" &&
@@ -64,7 +69,7 @@ function connectHitWebSocket() {
           hitCurrentSession = latest.sid;
           hitCurrentMD5 = json[1].md5 || null;
 
-          console.log(`🎯 Phiên ${hitCurrentSession} → [${latest.d1}, ${latest.d2}, ${latest.d3}]`);
+          console.log(`🎯 Phiên ${hitCurrentSession}: [${latest.d1}, ${latest.d2}, ${latest.d3}]`);
         }
       }
     } catch (err) {
@@ -73,7 +78,7 @@ function connectHitWebSocket() {
   });
 
   hitWS.on("close", () => {
-    console.warn("⚠️ Mất kết nối WebSocket HIT. Thử lại sau 5s...");
+    console.warn("⚠️ Mất kết nối WebSocket HIT. Kết nối lại sau 5s...");
     clearInterval(hitIntervalCmd);
     setTimeout(connectHitWebSocket, hitReconnectInterval);
   });
@@ -86,7 +91,6 @@ function connectHitWebSocket() {
 
 connectHitWebSocket();
 
-// API trả về kết quả HIT mới nhất
 fastify.get("/api/hit", async (request, reply) => {
   if (!hitLatestDice || !hitCurrentSession) {
     return {
@@ -125,4 +129,3 @@ const start = async () => {
 };
 
 start();
-
