@@ -4,29 +4,24 @@ const WebSocket = require("ws");
 const fastify = Fastify({ logger: false });
 const PORT = process.env.PORT || 3001;
 
-let hitLatestDice = null;
-let hitCurrentSession = null;
-let hitCurrentMD5 = null;
-let hitWS = null;
-let hitIntervalCmd = null;
-const hitReconnectInterval = 5000;
+let b52LatestDice = null;
+let b52CurrentSession = null;
+let b52CurrentMD5 = null;
+let b52WS = null;
+let b52IntervalCmd = null;
+const b52ReconnectInterval = 5000;
 
-// Gửi CMD 1015 để lấy kết quả mới
-function sendHitCmd1015() {
-  if (hitWS && hitWS.readyState === WebSocket.OPEN) {
-    const payload = [6, "MiniGame", "taixiuPlugin", { cmd: 1015 }];
-    hitWS.send(JSON.stringify(payload));
-    console.log("📤 Gửi CMD 1015");
+function sendB52Cmd1005() {
+  if (b52WS && b52WS.readyState === WebSocket.OPEN) {
+    const payload = [6, "MiniGame", "taixiuKCBPlugin", { cmd: 2000 }];
+    b52WS.send(JSON.stringify(payload));
   }
 }
 
-function connectHitWebSocket() {
-  console.log("🔌 Kết nối WebSocket HIT...");
-  hitWS = new WebSocket("wss://mynygwais.hytsocesk.com/websocket");
+function connectB52WebSocket() {
+  b52WS = new WebSocket("wss://mynygwais.hytsocesk.com/websocket");
 
-  hitWS.on("open", () => {
-    console.log("✅ Đã kết nối HIT");
-
+  b52WS.on("open", () => {
     const authPayload = [
       1,
       "MiniGame",
@@ -38,89 +33,74 @@ function connectHitWebSocket() {
         reconnect: false,
       },
     ];
-    hitWS.send(JSON.stringify(authPayload));
-    console.log("📤 Gửi payload xác thực");
-
-    clearInterval(hitIntervalCmd);
-    hitIntervalCmd = setInterval(sendHitCmd1015, 5000);
+    b52WS.send(JSON.stringify(authPayload));
+    clearInterval(b52IntervalCmd);
+    b52IntervalCmd = setInterval(sendB52Cmd1005, 5000);
   });
 
-  hitWS.on("message", (data) => {
-    const raw = data.toString();
-    console.log("📩 Dữ liệu thô về:", raw);
-
+  b52WS.on("message", (data) => {
     try {
-      const json = JSON.parse(raw);
+      const json = JSON.parse(data);
+      if (Array.isArray(json) && json[1]?.htr) {
+        // Lấy phần tử mới nhất (index 0)
+        const latest = json[1].htr[0];
+        if (latest && typeof latest.d1 === "number" && typeof latest.d2 === "number" && typeof latest.d3 === "number" && latest.sid) {
+          b52LatestDice = {
+            d1: latest.d1,
+            d2: latest.d2,
+            d3: latest.d3,
+          };
+          b52CurrentSession = latest.sid;
 
-      if (
-        Array.isArray(json) &&
-        json[1]?.cmd === 2006 && // Xác nhận phản hồi từ CMD 1015 là kết quả 2006
-        typeof json[1].d1 === "number" &&
-        typeof json[1].d2 === "number" &&
-        typeof json[1].d3 === "number"
-      ) {
-        hitLatestDice = {
-          d1: json[1].d1,
-          d2: json[1].d2,
-          d3: json[1].d3,
-        };
-        hitCurrentSession = json[1].sid || null;
-        hitCurrentMD5 = json[1].md5 || null;
-
-        console.log(`🎯 Phiên ${hitCurrentSession}: [${json[1].d1}, ${json[1].d2}, ${json[1].d3}]`);
+          // Nếu có MD5 trong dữ liệu, gán luôn, giả sử json[1].md5 có thể tồn tại
+          if (json[1].md5) {
+            b52CurrentMD5 = json[1].md5;
+          }
+        }
       }
-    } catch (err) {
-      console.error("❌ Lỗi xử lý message:", err.message);
+    } catch (e) {
+      // im lặng lỗi parse
     }
   });
 
-  hitWS.on("close", () => {
-    console.warn("⚠️ Mất kết nối WebSocket HIT. Kết nối lại sau 5s...");
-    clearInterval(hitIntervalCmd);
-    setTimeout(connectHitWebSocket, hitReconnectInterval);
+  b52WS.on("close", () => {
+    clearInterval(b52IntervalCmd);
+    setTimeout(connectB52WebSocket, b52ReconnectInterval);
   });
 
-  hitWS.on("error", (err) => {
-    console.error("❌ WebSocket lỗi:", err.message);
-    hitWS.close();
+  b52WS.on("error", (err) => {
+    b52WS.close();
   });
 }
 
-connectHitWebSocket();
+connectB52WebSocket();
 
-fastify.get("/api/hit", async (request, reply) => {
-  if (!hitLatestDice || !hitCurrentSession) {
+fastify.get("/api/b52", async (request, reply) => {
+  if (!b52LatestDice || !b52CurrentSession) {
     return {
       d1: null,
       d2: null,
       d3: null,
-      total: null,
-      tai_xiu: null,
       current_session: null,
-      current_md5: null,
+      current_md5: b52CurrentMD5 || null,
     };
   }
 
-  const total = hitLatestDice.d1 + hitLatestDice.d2 + hitLatestDice.d3;
-  const tai_xiu = total >= 11 ? "Tài" : "Xỉu";
-
   return {
-    d1: hitLatestDice.d1,
-    d2: hitLatestDice.d2,
-    d3: hitLatestDice.d3,
-    total,
-    tai_xiu,
-    current_session: hitCurrentSession,
-    current_md5: hitCurrentMD5,
+    d1: b52LatestDice.d1,
+    d2: b52LatestDice.d2,
+    d3: b52LatestDice.d3,
+    current_session: b52CurrentSession,
+    current_md5: b52CurrentMD5 || null,
   };
 });
 
 const start = async () => {
   try {
     const address = await fastify.listen({ port: PORT, host: "0.0.0.0" });
-    console.log(`🚀 Server đang chạy tại ${address}`);
+    console.log(`Server đang chạy tại ${address}`);
   } catch (err) {
-    console.error("❌ Lỗi khởi động server:", err);
+    console.error(err);
     process.exit(1);
   }
 };
