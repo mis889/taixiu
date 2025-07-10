@@ -11,12 +11,12 @@ let hitWS = null;
 let hitIntervalCmd = null;
 const hitReconnectInterval = 5000;
 
-// Gửi lệnh CMD 2006
-function sendHitCmd2006() {
+// Gửi CMD 1015 để lấy kết quả mới
+function sendHitCmd1015() {
   if (hitWS && hitWS.readyState === WebSocket.OPEN) {
-    const payload = [6, "MiniGame", "taixiuPlugin", { cmd: 2006 }];
+    const payload = [6, "MiniGame", "taixiuPlugin", { cmd: 1015 }];
     hitWS.send(JSON.stringify(payload));
-    console.log("📤 Gửi CMD 2006");
+    console.log("📤 Gửi CMD 1015");
   }
 }
 
@@ -42,7 +42,7 @@ function connectHitWebSocket() {
     console.log("📤 Gửi payload xác thực");
 
     clearInterval(hitIntervalCmd);
-    hitIntervalCmd = setInterval(sendHitCmd2006, 5000);
+    hitIntervalCmd = setInterval(sendHitCmd1015, 5000);
   });
 
   hitWS.on("message", (data) => {
@@ -52,25 +52,22 @@ function connectHitWebSocket() {
     try {
       const json = JSON.parse(raw);
 
-      if (Array.isArray(json) && json[1]?.htr?.length > 0) {
-        const latest = json[1].htr[0];
+      if (
+        Array.isArray(json) &&
+        json[1]?.cmd === 2006 && // Xác nhận phản hồi từ CMD 1015 là kết quả 2006
+        typeof json[1].d1 === "number" &&
+        typeof json[1].d2 === "number" &&
+        typeof json[1].d3 === "number"
+      ) {
+        hitLatestDice = {
+          d1: json[1].d1,
+          d2: json[1].d2,
+          d3: json[1].d3,
+        };
+        hitCurrentSession = json[1].sid || null;
+        hitCurrentMD5 = json[1].md5 || null;
 
-        if (
-          typeof latest.d1 === "number" &&
-          typeof latest.d2 === "number" &&
-          typeof latest.d3 === "number" &&
-          latest.sid
-        ) {
-          hitLatestDice = {
-            d1: latest.d1,
-            d2: latest.d2,
-            d3: latest.d3,
-          };
-          hitCurrentSession = latest.sid;
-          hitCurrentMD5 = json[1].md5 || null;
-
-          console.log(`🎯 Phiên ${hitCurrentSession}: [${latest.d1}, ${latest.d2}, ${latest.d3}]`);
-        }
+        console.log(`🎯 Phiên ${hitCurrentSession}: [${json[1].d1}, ${json[1].d2}, ${json[1].d3}]`);
       }
     } catch (err) {
       console.error("❌ Lỗi xử lý message:", err.message);
