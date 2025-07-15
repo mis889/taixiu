@@ -73,103 +73,94 @@ function connectWebSocket() {
 connectWebSocket();
 
 // === THUẬT TOÁN PHÂN TÍCH ===
+// === THUẬT TOÁN PATTERN ANALYSIS NÂNG CAO ===
 const PATTERN_DATA = {
-  // Pattern thường
-  "ttxttx": { tai: 80, xiu: 20 },
-  "xxttxx": { tai: 20, xiu: 80 },
-  "ttxxtt": { tai: 75, xiu: 25 },
-  "txtxt": { tai: 60, xiu: 40 },
-  "xtxtx": { tai: 40, xiu: 60 },
+  // Các pattern cơ bản
+  "tttt": { tai: 73, xiu: 27 }, "xxxx": { tai: 27, xiu: 73 },
+  "tttttt": { tai: 83, xiu: 17 }, "xxxxxx": { tai: 17, xiu: 83 },
+  "ttttx": { tai: 40, xiu: 60 }, "xxxxt": { tai: 60, xiu: 40 },
+  "ttttttx": { tai: 30, xiu: 70 }, "xxxxxxt": { tai: 70, xiu: 30 },
+  "ttxx": { tai: 62, xiu: 38 }, "xxtt": { tai: 38, xiu: 62 },
+  "ttxxtt": { tai: 32, xiu: 68 }, "xxttxx": { tai: 68, xiu: 32 },
+  "txx": { tai: 60, xiu: 40 }, "xtt": { tai: 40, xiu: 60 },
+  "txxtx": { tai: 63, xiu: 37 }, "xttxt": { tai: 37, xiu: 63 },
+  "tttxt": { tai: 60, xiu: 40 }, "xxxtx": { tai: 40, xiu: 60 },
+  "tttxx": { tai: 60, xiu: 40 }, "xxxtt": { tai: 40, xiu: 60 },
+  "txxt": { tai: 60, xiu: 40 }, "xttx": { tai: 40, xiu: 60 },
+  "ttxxttx": { tai: 30, xiu: 70 }, "xxttxxt": { tai: 70, xiu: 30 },
 
-  // Cầu ngắn
-  "ttx": { tai: 70, xiu: 30 },
-  "xxt": { tai: 30, xiu: 70 },
-  "txt": { tai: 65, xiu: 35 },
-  "xtx": { tai: 35, xiu: 65 },
+  // Bổ sung pattern cầu lớn
+  "tttttttt": { tai: 88, xiu: 12 }, "xxxxxxxx": { tai: 12, xiu: 88 },
+  "tttttttx": { tai: 25, xiu: 75 }, "xxxxxxxxt": { tai: 75, xiu: 25 },
+  "tttttxxx": { tai: 35, xiu: 65 }, "xxxxtttt": { tai: 65, xiu: 35 },
+  "ttttxxxx": { tai: 30, xiu: 70 }, "xxxxtttx": { tai: 70, xiu: 30 },
 
-  // Bệt ngắn
-  "tttt": { tai: 85, xiu: 15 },
-  "xxxx": { tai: 15, xiu: 85 },
-  "ttttt": { tai: 88, xiu: 12 },
-  "xxxxx": { tai: 12, xiu: 88 },
-  "tttttt": { tai: 92, xiu: 8 },
-  "xxxxxx": { tai: 8, xiu: 92 },
-  "ttttttt": { tai: 95, xiu: 5 },
-  "xxxxxxx": { tai: 5, xiu: 95 },
-  "tttttttt": { tai: 97, xiu: 3 },
-  "xxxxxxxx": { tai: 3, xiu: 97 },
+  // Pattern đặc biệt cho Sunwin
+  "txtxtx": { tai: 68, xiu: 32 }, "xtxtxt": { tai: 32, xiu: 68 },
+  "ttxtxt": { tai: 55, xiu: 45 }, "xxtxtx": { tai: 45, xiu: 55 },
+  "txtxxt": { tai: 60, xiu: 40 }, "xtxttx": { tai: 40, xiu: 60 },
 
-  // Đặc biệt Sunwin
-  "tttx": { tai: 75, xiu: 25 },
-  "xxxt": { tai: 25, xiu: 75 },
-  "ttxtx": { tai: 78, xiu: 22 },
-  "xxtxt": { tai: 22, xiu: 78 },
-  "txtxtx": { tai: 82, xiu: 18 },
-  "xtxtxt": { tai: 18, xiu: 82 },
-  "ttxtxt": { tai: 85, xiu: 15 },
-  "xxtxtx": { tai: 15, xiu: 85 },
-  "txtxxt": { tai: 83, xiu: 17 },
-  "xtxttx": { tai: 17, xiu: 83 },
+  // Pattern nâng cao và zigzag
+  "ttx": { tai: 65, xiu: 35 }, "xxt": { tai: 35, xiu: 65 },
+  "txt": { tai: 58, xiu: 42 }, "xtx": { tai: 42, xiu: 58 },
+  "tttx": { tai: 70, xiu: 30 }, "xxxt": { tai: 30, xiu: 70 },
+  "ttxt": { tai: 63, xiu: 37 }, "xxtx": { tai: 37, xiu: 63 },
+  "txxx": { tai: 25, xiu: 75 }, "xttt": { tai: 75, xiu: 25 },
+  "ttxtx": { tai: 62, xiu: 38 }, "xxtxt": { tai: 38, xiu: 62 },
+  "ttxxt": { tai: 55, xiu: 45 }, "xxttx": { tai: 45, xiu: 55 },
+  "ttxttx": { tai: 60, xiu: 40 }, "xxtxxt": { tai: 40, xiu: 60 },
+  "ttxxtx": { tai: 58, xiu: 42 }, "ttxtxtx": { tai: 62, xiu: 38 },
+  "ttxxtxt": { tai: 55, xiu: 45 }, "ttxtxxt": { tai: 65, xiu: 35 },
+  "ttxtxttx": { tai: 70, xiu: 30 }, "ttxxtxtx": { tai: 68, xiu: 32 },
+  "ttxtxxtx": { tai: 72, xiu: 28 }, "ttxxtxxt": { tai: 75, xiu: 25 },
 
-  // Pattern zigzag
-  "txtx": { tai: 60, xiu: 40 },
-  "xtxt": { tai: 40, xiu: 60 },
-  "txtxt": { tai: 65, xiu: 35 },
-  "xtxtx": { tai: 35, xiu: 65 },
-  "txtxtxt": { tai: 70, xiu: 30 },
-  "xtxtxtx": { tai: 30, xiu: 70 },
+  // Zigzag
+  "txtx": { tai: 52, xiu: 48 }, "xtxt": { tai: 48, xiu: 52 },
+  "txtxt": { tai: 53, xiu: 47 }, "xtxtx": { tai: 47, xiu: 53 },
+  "txtxtx": { tai: 55, xiu: 45 }, "xtxtxt": { tai: 45, xiu: 55 },
+  "txtxtxt": { tai: 57, xiu: 43 }, "xtxtxtx": { tai: 43, xiu: 57 },
 
-  // Cầu bệt dài đặc biệt (Sunwin)
-  "ttttttttttttx": { tai: 95, xiu: 5 },
-  "tttttttttttxt": { tai: 5, xiu: 95 },
-  "tttttttttttxx": { tai: 5, xiu: 95 },
-  "ttttttttttxtt": { tai: 95, xiu: 5 },
-  "ttttttttttxtx": { tai: 95, xiu: 5 },
-  "ttttttttttxxt": { tai: 95, xiu: 5 },
-  "ttttttttttxxx": { tai: 95, xiu: 5 },
-  "tttttttttxttt": { tai: 95, xiu: 5 },
-  "tttttttttxttx": { tai: 95, xiu: 5 },
-  "tttttttttxtxt": { tai: 5, xiu: 95 },
-  "tttttttttxtxx": { tai: 5, xiu: 95 },
-  "tttttttttxxtt": { tai: 95, xiu: 5 },
-  "tttttttttxxtx": { tai: 95, xiu: 5 },
-  "tttttttttxxxt": { tai: 5, xiu: 95 },
-  "tttttttttxxxx": { tai: 95, xiu: 5 },
-  "ttttttttxtttt": { tai: 95, xiu: 5 },
-  "ttttttttxtttx": { tai: 95, xiu: 5 },
-  "ttttttttxttxt": { tai: 5, xiu: 95 },
-  "ttttttttxttxx": { tai: 5, xiu: 95 },
-  "ttttttttxtxtt": { tai: 95, xiu: 5 },
-  "ttttttttxtxtx": { tai: 95, xiu: 5 },
-  "ttttttttxtxxt": { tai: 95, xiu: 5 },
-  "ttttttttxtxxx": { tai: 95, xiu: 5 },
-  "ttttttttxxttt": { tai: 95, xiu: 5 },
-  "ttttttttxxttx": { tai: 95, xiu: 5 },
-  "ttttttttxxtxt": { tai: 5, xiu: 95 },
-  "ttttttttxxtxx": { tai: 5, xiu: 95 },
-  "ttttttttxxxtt": { tai: 95, xiu: 5 },
-  "ttttttttxxxtx": { tai: 95, xiu: 5 },
-  "ttttttttxxxxt": { tai: 5, xiu: 95 },
-  "ttttttttxxxxx": { tai: 5, xiu: 95 },
-  "tttttttxttttt": { tai: 95, xiu: 5 },
-  "tttttttxttttx": { tai: 95, xiu: 5 },
-  "tttttttxtttxt": { tai: 5, xiu: 95 },
-  "tttttttxtttxx": { tai: 5, xiu: 95 },
-  "tttttttxttxtt": { tai: 95, xiu: 5 },
-  "tttttttxttxtx": { tai: 95, xiu: 5 }
+  // Đặc biệt kết hợp
+  "ttxxttxx": { tai: 38, xiu: 62 }, "xxttxxtt": { tai: 62, xiu: 38 },
+  "ttxxxttx": { tai: 45, xiu: 55 }, "xxttxxxt": { tai: 55, xiu: 45 },
+  "ttxtxttx": { tai: 50, xiu: 50 }, "xxtxtxxt": { tai: 50, xiu: 50 }
 };
 
-const SUNWIN_ALGORITHM = {
+const BIG_STREAK_DATA = {
+  tai: {
+    3: { next_tai: 65, next_xiu: 35 },
+    4: { next_tai: 70, next_xiu: 30 },
+    5: { next_tai: 75, next_xiu: 25 },
+    6: { next_tai: 80, next_xiu: 20 },
+    7: { next_tai: 85, next_xiu: 15 },
+    8: { next_tai: 88, next_xiu: 12 },
+    9: { next_tai: 90, next_xiu: 10 },
+    "10+": { next_tai: 92, next_xiu: 8 }
+  },
+  xiu: {
+    3: { next_tai: 35, next_xiu: 65 },
+    4: { next_tai: 30, next_xiu: 70 },
+    5: { next_tai: 25, next_xiu: 75 },
+    6: { next_tai: 20, next_xiu: 80 },
+    7: { next_tai: 15, next_xiu: 85 },
+    8: { next_tai: 12, next_xiu: 88 },
+    9: { next_tai: 10, next_xiu: 90 },
+    "10+": { next_tai: 8, next_xiu: 92 }
+  }
+};
+
+const SUM_STATS = {
   "3-10": { tai: 0, xiu: 100 },
-  "11": { tai: 10, xiu: 90 },
-  "12": { tai: 20, xiu: 80 },
-  "13": { tai: 35, xiu: 65 },
-  "14": { tai: 45, xiu: 55 },
-  "15": { tai: 65, xiu: 35 },
-  "16": { tai: 80, xiu: 20 },
-  "17": { tai: 90, xiu: 10 },
-  "18": { tai: 100, xiu: 0 }
+  11: { tai: 15, xiu: 85 },
+  12: { tai: 25, xiu: 75 },
+  13: { tai: 40, xiu: 60 },
+  14: { tai: 50, xiu: 50 },
+  15: { tai: 60, xiu: 40 },
+  16: { tai: 75, xiu: 25 },
+  17: { tai: 85, xiu: 15 },
+  18: { tai: 100, xiu: 0 }
 };
+
 
 function predictByPattern(pattern) {
   const p = PATTERN_DATA[pattern];
