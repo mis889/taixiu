@@ -1,12 +1,15 @@
 {
-  "name": "apihitmd5-api",
+  "name": "sunwin-predictor",
   "version": "1.0.0",
-  "main": "apihitmd5.js",
+  "description": "Tool phân tích Tài Xỉu Sunwin WebSocket",
+  "main": "index.js",
   "scripts": {
-    "start": "node apihitmd5.js"
+    "start": "node index.js"
   },
   "dependencies": {
-    "express": "^4.18.2",
-    "ws": "^8.0.0"
-  }
+    "fastify": "^4.27.2",
+    "ws": "^8.16.0"
+  },
+  "author": "STV Team",
+  "license": "MIT"
 }
