@@ -1,147 +1,171 @@
+const Fastify = require("fastify");
 const WebSocket = require("ws");
-const express = require("express");
-const app = express();
+
+const fastify = Fastify({ logger: false });
 const PORT = process.env.PORT || 3000;
 
-let phienTruoc = null;
-let phienKeTiep = null;
+let lastResults = [];
+let currentResult = null;
+let currentSession = null;
 
-// ✅ Lưu 10 kết quả gần nhất (không chứa md5)
-let lichSuPhien = [];
+let ws = null;
+let reconnectInterval = 5000;
+let intervalCmd = null;
 
-const WS_URL = "wss://mynygwais.hytsocesk.com/websocket";
+function sendCmd1005() {
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    const payload = [6, "MiniGame", "taixiuPlugin", { cmd: 1005 }];
+    ws.send(JSON.stringify(payload));
+  }
+}
 
 function connectWebSocket() {
-    const ws = new WebSocket(WS_URL);
+  ws = new WebSocket("wss://websocket.azhkthg1.net/websocket?token=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJhbW91bnQiOjB9.p56b5g73I9wyoVu4db679bOvVeFJWVjGDg_ulBXyav8");
 
-    ws.on("open", () => {
-        console.log("[+] WebSocket đã kết nối");
+  ws.on("open", () => {
+    console.log("✅ Kết nối WebSocket thành công");
+    const authPayload = [
+      1,
+      "MiniGame",
+      "SC_xigtupou",
+      "conga999",
+      {
+        info: "{\"ipAddress\":\"2a09:bac5:d46e:25b9::3c2:39\",\"userId\":\"eff718a2-31db-4dd5-acb5-41f8cfd3e486\",\"username\":\"SC_miss88\",\"timestamp\":1751782535424,\"refreshToken\":\"22aadcb93490422b8d713f8776329a48.9adf6a5293d8443a888edd3ee802b9f4\"}",
+        signature: "06FBBB7B38F79CBFCD34485EEEDF4104E542C26114984D0E9155073FD73E4C23CDCF1029B8F75B26427D641D5FE7BC4B231ABB0D2F6EBC76ED6EDE56B640ED161DEA92A6340AD911AD3D029D8A39E081EB9463BCA194C6B7230C89858723A9E3599868CAEC4D475C22266E4B299BA832D9E20BC3374679CA4F880593CF5D5845"
+      }
+    ];
+    ws.send(JSON.stringify(authPayload));
+    clearInterval(intervalCmd);
+    intervalCmd = setInterval(sendCmd1005, 5000);
+  });
 
-        const authPayload = [
-            1,
-            "MiniGame",
-            "",
-            "",
-            {
-                agentId: "1",
-                accessToken: "1-951105cee835343eeb1912721b22a5e7",
-                reconnect: false
-            }
-        ];
-        ws.send(JSON.stringify(authPayload));
-        console.log("[>] Đã gửi xác thực");
+  ws.on("message", (data) => {
+    try {
+      const json = JSON.parse(data);
+      if (Array.isArray(json) && json[1]?.htr) {
+        lastResults = json[1].htr.map(item => ({
+          sid: item.sid,
+          d1: item.d1,
+          d2: item.d2,
+          d3: item.d3
+        }));
 
-        setTimeout(() => {
-            const cmdPayload = [
-                6,
-                "MiniGame",
-                "taixiuKCBPlugin",
-                { cmd: 2001 }
-            ];
-            ws.send(JSON.stringify(cmdPayload));
-            console.log("[>] Đã gửi cmd 2001");
-        }, 1000);
-    });
+        const latest = lastResults[0];
+        const total = latest.d1 + latest.d2 + latest.d3;
+        currentResult = total >= 11 ? "T" : "X";
+        currentSession = latest.sid;
+      }
+    } catch (e) {}
+  });
 
-    ws.on("message", (message) => {
-        try {
-            const data = JSON.parse(message);
-            if (Array.isArray(data) && data.length === 2 && data[0] === 5 && typeof data[1] === "object") {
-                const d = data[1].d;
+  ws.on("close", () => {
+    console.warn("⚠️ WebSocket đóng, thử kết nối lại...");
+    clearInterval(intervalCmd);
+    setTimeout(connectWebSocket, reconnectInterval);
+  });
 
-                if (typeof d === "object") {
-                    const cmd = d.cmd;
-                    const sid = d.sid;
-                    const md5 = d.md5;
-
-                    if (cmd === 2006 && d.d1 !== undefined && d.d2 !== undefined && d.d3 !== undefined) {
-                        const { d1, d2, d3 } = d;
-                        const total = d1 + d2 + d3;
-                        const result = total >= 11 ? "Tài" : "Xỉu";
-
-                        phienTruoc = {
-                            phien: sid,
-                            xuc_xac_1: d1,
-                            xuc_xac_2: d2,
-                            xuc_xac_3: d3,
-                            tong: total,
-                            ket_qua: result,
-                            md5
-                        };
-
-                        // ✅ Thêm vào lịch sử không chứa md5
-                        lichSuPhien.unshift({
-                            phien: sid,
-                            xuc_xac_1: d1,
-                            xuc_xac_2: d2,
-                            xuc_xac_3: d3,
-                            tong: total,
-                            ket_qua: result
-                        });
-                        if (lichSuPhien.length > 10) lichSuPhien.pop();
-
-                        console.log(`🎲 Phiên ${sid}: ${d1}-${d2}-${d3} = ${total} ➜ ${result}`);
-                        console.log(`🔐 MD5: ${md5}`);
-                    }
-
-                    if (cmd === 2005) {
-                        phienKeTiep = {
-                            phien: sid,
-                            md5
-                        };
-                        console.log(`⏭️ Phiên kế tiếp: ${sid} | MD5: ${md5}`);
-                    }
-                }
-            }
-        } catch (err) {
-            console.error("[!] Lỗi:", err.message);
-        }
-    });
-
-    ws.on("close", () => {
-        console.log("[x] WS bị đóng. Tự kết nối lại sau 3s...");
-        setTimeout(connectWebSocket, 3000);
-    });
-
-    ws.on("error", (err) => {
-        console.error("[!] WebSocket lỗi:", err.message);
-    });
+  ws.on("error", (err) => {
+    console.error("❌ Lỗi WebSocket:", err.message);
+    ws.close();
+  });
 }
 
 connectWebSocket();
 
-// ✅ API Express
+// === THUẬT TOÁN PHÂN TÍCH ===
+const PATTERN_DATA = {
+  "ttxttx": { tai: 80, xiu: 20 }, "xxttxx": { tai: 20, xiu: 80 },
+  "ttxxtt": { tai: 75, xiu: 25 }, "txtxt": { tai: 60, xiu: 40 },
+  "xtxtx": { tai: 40, xiu: 60 }, "ttx": { tai: 70, xiu: 30 },
+  "xxt": { tai: 30, xiu: 70 }, "txt": { tai: 65, xiu: 35 },
+  "xtx": { tai: 35, xiu: 65 }, "tttt": { tai: 85, xiu: 15 },
+  "xxxx": { tai: 15, xiu: 85 }, "ttttt": { tai: 88, xiu: 12 },
+  "xxxxx": { tai: 12, xiu: 88 }, "tttttt": { tai: 92, xiu: 8 },
+  "xxxxxx": { tai: 8, xiu: 92 }, "tttx": { tai: 75, xiu: 25 },
+  "xxxt": { tai: 25, xiu: 75 }, "ttxxtt": { tai: 80, xiu: 20 },
+  "ttxtx": { tai: 78, xiu: 22 }, "xxtxt": { tai: 22, xiu: 78 },
+  "txtxtx": { tai: 82, xiu: 18 }, "xtxtxt": { tai: 18, xiu: 82 },
+  "ttxtxt": { tai: 85, xiu: 15 }, "xxtxtx": { tai: 15, xiu: 85 },
+  "txtxxt": { tai: 83, xiu: 17 }, "xtxttx": { tai: 17, xiu: 83 },
+  "ttttttt": { tai: 95, xiu: 5 }, "xxxxxxx": { tai: 5, xiu: 95 },
+  "tttttttt": { tai: 97, xiu: 3 }, "xxxxxxxx": { tai: 3, xiu: 97 },
+  "txtx": { tai: 60, xiu: 40 }, "xtxt": { tai: 40, xiu: 60 },
+  "txtxt": { tai: 65, xiu: 35 }, "xtxtx": { tai: 35, xiu: 65 },
+  "txtxtxt": { tai: 70, xiu: 30 }, "xtxtxtx": { tai: 30, xiu: 70 }
+};
 
-app.get("/", (req, res) => {
-    res.json({
-        phien_truoc: phienTruoc,
-        phien_ke_tiep: phienKeTiep,
-        thoi_gian: new Date().toLocaleString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" })
-    });
+const SUNWIN_ALGORITHM = {
+  "3-10": { tai: 0, xiu: 100 }, "11": { tai: 10, xiu: 90 },
+  "12": { tai: 20, xiu: 80 }, "13": { tai: 35, xiu: 65 },
+  "14": { tai: 45, xiu: 55 }, "15": { tai: 65, xiu: 35 },
+  "16": { tai: 80, xiu: 20 }, "17": { tai: 90, xiu: 10 },
+  "18": { tai: 100, xiu: 0 }
+};
+
+function predictByPattern(pattern) {
+  const p = PATTERN_DATA[pattern];
+  if (!p) return null;
+  return p.tai > p.xiu ? "Tài" : "Xỉu";
+}
+
+function predictByTotal(total) {
+  if (total <= 10) return "Xỉu";
+  const rule = SUNWIN_ALGORITHM[total.toString()];
+  if (!rule) return null;
+  return rule.tai > rule.xiu ? "Tài" : "Xỉu";
+}
+
+// === API PHÂN TÍCH ===
+fastify.get("/api/toolaxosun", async (request, reply) => {
+  const validResults = [...lastResults].reverse().filter(item => item.d1 && item.d2 && item.d3);
+  if (validResults.length < 13) {
+    return {
+      phien_cu: null,
+      ket_qua: null,
+      xuc_xac: [],
+      phien_hien_tai: null,
+      du_doan: null,
+      thanh_cau: "",
+      id: "@axobantool"
+    };
+  }
+
+  const current = validResults[0];
+  const total = current.d1 + current.d2 + current.d3;
+  const ketQua = total >= 11 ? "Tài" : "Xỉu";
+  const phienCu = current.sid;
+  const phienMoi = phienCu + 1;
+
+  const thanhCau = validResults.slice(0, 13).map(item => {
+    const sum = item.d1 + item.d2 + item.d3;
+    return sum >= 11 ? "t" : "x";
+  }).reverse().join("");
+
+  let duDoan = predictByPattern(thanhCau);
+  if (!duDoan) {
+    duDoan = ketQua === "Tài" ? "Xỉu" : "Tài";
+  }
+
+  return {
+    phien_cu: phienCu,
+    ket_qua: ketQua,
+    xuc_xac: [current.d1, current.d2, current.d3],
+    phien_hien_tai: phienMoi,
+    du_doan: duDoan,
+    thanh_cau: thanhCau,
+    id: "@axobantool"
+  };
 });
 
-// ✅ API: /latest – phiên mới nhất (có md5)
-app.get("/latest", (req, res) => {
-    res.json({
-        ...phienTruoc,
-        thoi_gian: new Date().toLocaleString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" })
-    });
-});
+// === KHỞI ĐỘNG SERVER ===
+const start = async () => {
+  try {
+    const address = await fastify.listen({ port: PORT, host: "0.0.0.0" });
+    console.log(`🚀 Server chạy tại ${address}`);
+  } catch (err) {
+    console.error(err);
+    process.exit(1);
+  }
+};
 
-// ✅ API: /history – 10 kết quả gần nhất (không có md5)
-app.get("/history", (req, res) => {
-    res.json({
-        lich_su: lichSuPhien,
-        dem: lichSuPhien.length
-    });
-});
-
-// 🔄 Ping chống sleep Render
-setInterval(() => {
-    console.log("💤 Ping giữ Render hoạt động...");
-}, 1000 * 60 * 5);
-
-// 🚀 Khởi động server
-app.listen(PORT, () => {
-    console.log(`✅ API đang chạy tại http://localhost:${PORT}`);
-});
+start();
