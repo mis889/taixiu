@@ -274,7 +274,7 @@ function sendCmd1005() {
 }
 
 function connectWebSocket() {
-  ws = new WebSocket("wss://websocket.azhkthg1.net/websocket?token=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJhbW91bnQiOjB9.p56b5g73I9wyoVu4db679bOvVeFJWVjGDg_ulBXyav8");
+  ws = new WebSocket("wss://websocket.azhkthg1.net/wsbinary?token=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJhbW91bnQiOjAsInVzZXJuYW1lIjoiU0NfYXhvZGF5In0.DMD395i2WINL3cAb8YjfVcYaod9ltA2XiH8CY35vv8s");
 
   ws.on("open", () => {
     console.log("✅ Đã kết nối WebSocket");
