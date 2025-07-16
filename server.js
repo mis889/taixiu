@@ -280,22 +280,35 @@ function connectWebSocket() {
     console.log("✅ Đã kết nối WebSocket");
 
    const authPayload = [
-  1,
-  "MiniGame",
-  "SC_axoday",
-  "vinhk122011",
-  {
-    info: {
-      ipAddress: "2001:ee0:4f91:2000:c474:3297:c8b5:b900",
-      userId: "6c2c232c-692b-4559-8fb1-d9445e02e984",
-      username: "SC_axoday",
-      timestamp: 1752645339732,
-      refreshToken: "67c39d707f48422f8b5c0049484e263d.cd09f44a7a6e4555bed6fc5daeabee26/"
-    },
-    signature: "1512DB1E741E3F80A4F63D5788586AE2E4D7ADFCB6A829E1134EE35B16C275EF57D917B57144AA252DF7EC783D4D560FCA6D9E9581397C978E4479A39F8C663AD25CB8A6F730BAA867B8611FAE0AC6DDB51BA928728DD58FD82B597652C6659B1B2BEFBDF11C981A96142EEDA875C158C7BC53C39EFD118038079132D3DE53CB"
-  }
-];
+      1,
+      "MiniGame",
+      "SC_axoday",
+      "vinhk122011",
+      {
+        info: {"ipAddress":"2001:ee0:4f91:2000:c474:3297:c8b5:b900","userId":"6c2c232c-692b-4559-8fb1-d9445e02e984","username":"SC_axoday","timestamp":1752647142093,"refreshToken":"67c39d707f48422f8b5c0049484e263d.cd09f44a7a6e4555bed6fc5daeabee26"},
+        signature: "1512DB1E741E3F80A4F63D5788586AE2E4D7ADFCB6A829E1134EE35B16C275EF57D917B57144AA252DF7EC783D4D560FCA6D9E9581397C978E4479A39F8C663AD25CB8A6F730BAA867B8611FAE0AC6DDB51BA928728DD58FD82B597652C6659B1B2BEFBDF11C981A96142EEDA875C158C7BC53C39EFD118038079132D3DE53CB"
+      }
+    ];
 
+    ws.send(JSON.stringify(authPayload));
+    clearInterval(intervalCmd);
+    intervalCmd = setInterval(sendCmd1005, 5000);
+  });
+
+  ws.on("message", (data) => {
+    try {
+      const json = JSON.parse(data);
+      if (Array.isArray(json) && json[1]?.htr) {
+        lastResults = json[1].htr.map(item => ({
+          sid: item.sid,
+          d1: item.d1,
+          d2: item.d2,
+          d3: item.d3
+        }));
+        currentSession = lastResults[0]?.sid || null;
+      }
+    } catch (e) {}
+  });
 
     ws.send(JSON.stringify(authPayload));
     clearInterval(intervalCmd);
