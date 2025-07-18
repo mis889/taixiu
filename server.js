@@ -12,46 +12,59 @@ let ws = null;
 let reconnectInterval = 5000;
 let intervalCmd = null;
 
-function sendCmd1005() {
-  if (ws && ws.readyState === WebSocket.OPEN) {
-    const payload = [6, "MiniGame", "taixiuPlugin", { cmd: 1005 }];
-    ws.send(JSON.stringify(payload));
-  }
-}
+const messagesToSend = [
+  [1, "MiniGame", "SC_anhlatrumapi1", "binhtool90", {
+    info: "{\"ipAddress\":\"2001:ee0:5709:2720:7ba7:fb19:d038:aa91\",\"wsToken\":\"eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9...\",\"userId\":\"6a5cf7cf-4486-4be5-a023-529928e2d85c\",\"username\":\"SC_anhlatrumapi1\",\"timestamp\":1752787308659}",
+    signature: "5537B01C383416D3BE734483E7A84B7CAFB9ADFE81CE55406B2D455D205F437E..."
+  }],
+  [6, "MiniGame", "taixiuPlugin", { cmd: 1005 }],
+  [6, "MiniGame", "lobbyPlugin", { cmd: 10001 }]
+];
 
 function connectWebSocket() {
-  ws = new WebSocket("wss://websocket.azhkthg1.net/websocket?token=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJhbW91bnQiOjB9.p56b5g73I9wyoVu4db679bOvVeFJWVjGDg_ulBXyav8");
+  ws = new WebSocket("wss://websocket.azhkthg1.net/websocket?token=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9...", {
+    headers: {
+      "User-Agent": "Mozilla/5.0",
+      "Origin": "https://play.sun.win"
+    }
+  });
 
   ws.on("open", () => {
     console.log("✅ Đã kết nối WebSocket");
 
-    const authPayload = [
-      1,
-      "MiniGame",
-      "SC_xigtupou",
-      "conga999",
-      {
-        info: "{\"ipAddress\":\"2a09:bac5:d46e:25b9::3c2:39\",\"userId\":\"eff718a2-31db-4dd5-acb5-41f8cfd3e486\",\"username\":\"SC_miss88\",\"timestamp\":1751782535424,\"refreshToken\":\"22aadcb93490422b8d713f8776329a48.9adf6a5293d8443a888edd3ee802b9f4\"}",
-        signature: "06FBBB7B38F79CBFCD34485EEEDF4104E542C26114984D0E9155073FD73E4C23CDCF1029B8F75B26427D641D5FE7BC4B231ABB0D2F6EBC76ED6EDE56B640ED161DEA92A6340AD911AD3D029D8A39E081EB9463BCA194C6B7230C89858723A9E3599868CAEC4D475C22266E4B299BA832D9E20BC3374679CA4F880593CF5D5845"
-      }
-    ];
+    messagesToSend.forEach((msg, i) => {
+      setTimeout(() => {
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify(msg));
+        }
+      }, i * 600);
+    });
 
-    ws.send(JSON.stringify(authPayload));
     clearInterval(intervalCmd);
-    intervalCmd = setInterval(sendCmd1005, 5000);
+    intervalCmd = setInterval(() => {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.ping();
+      }
+    }, 15000);
+  });
+
+  ws.on("pong", () => {
+    console.log("📶 Ping OK");
   });
 
   ws.on("message", (data) => {
     try {
       const json = JSON.parse(data);
-      if (Array.isArray(json) && json[1]?.htr) {
-        lastResults = json[1].htr.map(item => ({
-          sid: item.sid,
-          d1: item.d1,
-          d2: item.d2,
-          d3: item.d3
-        }));
-        currentSession = lastResults[0]?.sid || null;
+      if (Array.isArray(json) && typeof json[1] === "object") {
+        const cmd = json[1].cmd;
+
+        if (cmd === 1003 && json[1].gBB) {
+          const { d1, d2, d3, sid } = json[1];
+          const tong = d1 + d2 + d3;
+          lastResults.unshift({ sid, d1, d2, d3 });
+          if (lastResults.length > 20) lastResults.pop();
+          currentSession = sid;
+        }
       }
     } catch (e) {}
   });
