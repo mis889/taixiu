@@ -399,16 +399,15 @@ fastify.register(cors);
 // API chính
 fastify.get("/axobantol", async () => {
   const validResults = rikResults.filter(item => item.d1 && item.d2 && item.d3);
-  if (validResults.length < 2) return { message: "Không đủ dữ liệu." };
+  if (validResults.length < 1) return { message: "Không đủ dữ liệu." };
 
-  const prev = validResults[1];
-  const next = validResults[0];
-  const sumPrev = prev.d1 + prev.d2 + prev.d3;
-  const ketQuaPrev = sumPrev >= 11 ? "Tài" : "Xỉu";
+  const current = validResults[0]; // phiên hiện tại là mới nhất
+  const sumCurrent = current.d1 + current.d2 + current.d3;
+  const ketQuaCurrent = sumCurrent >= 11 ? "Tài" : "Xỉu";
 
   const duongCau = validResults
     .slice(0, 13)
-    .reverse() // <-- Đảo ngược để phiên mới nằm bên phải
+    .reverse()
     .map(r => (r.d1 + r.d2 + r.d3 >= 11 ? "t" : "x"))
     .join("");
 
@@ -416,10 +415,10 @@ fastify.get("/axobantol", async () => {
 
   return {
     id: "@axobantool",
-    phien_cu: prev.sid,
-    ket_qua: ketQuaPrev,
-    xuc_xac: `${prev.d1},${prev.d2},${prev.d3}`,
-    phien_moi: next.sid,
+    phien_cu: current.sid,
+    ket_qua: ketQuaCurrent,
+    xuc_xac: `${current.d1},${current.d2},${current.d3}`,
+    phien_moi: current.sid + 1,
     pattern: duongCau,
     du_doan: duDoan
   };
