@@ -13,7 +13,6 @@ let rikWS = null;
 let rikIntervalCmd = null;
 
 const PATTERN_MAP = {
- const predictionMap = {
   "TXT": "Xỉu", 
   "TTXX": "Tài", 
   "XXTXX": "Tài", 
