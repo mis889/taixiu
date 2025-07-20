@@ -1,542 +1,449 @@
-const express = require('express');
-const http = require('http');
-const WebSocket = require('ws');
-const cors = require('cors');
+const Fastify = require("fastify");
+const cors = require("@fastify/cors");
+const WebSocket = require("ws");
 
-// Configuration
-const PORT = process.env.PORT || 3000; // Use Render's port environment variable
-const WS_URL = 'ws://160.191.243.121:3060/?id=mrtinhios&key=vantinh5907pq';
-const HISTORY_MAX_LENGTH = 200;
-const RECONNECT_DELAY = 5000; // 5 seconds
-const HEALTH_CHECK_INTERVAL = 30000; // 30 seconds
+const TOKEN = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJhbW91bnQiOjE0MDAsInVzZXJuYW1lIjoiU0Nfbmd1eWVudmFudGluaG5lIn0.owsA4eD0qVYinV3CZcPIu5nLuUVm56ZZmoTRz9WVGW8";
 
-// Global variables
-let history = [];
-let currentSession = null;
-let wsClient = null;
-let lastActivity = Date.now();
-let isShuttingDown = false;
+const fastify = Fastify({ logger: false });
+const PORT = process.env.PORT || 3001;
 
-// Keep the patternPredictions object exactly as you have it
-const patternPredictions = {
-  "TTT": { prediction: "Tài", confidence: 95 },
-  "TTX": { prediction: "Xỉu", confidence: 85 },
-  "TXT": { prediction: "Tài", confidence: 75 },
-  "TXX": { prediction: "Xỉu", confidence: 80 },
-  "XTT": { prediction: "Tài", confidence: 70 },
-  "XTX": { prediction: "Xỉu", confidence: 65 },
-  "XXT": { prediction: "Tài", confidence: 60 },
-  "XXX": { prediction: "Xỉu", confidence: 90 },
+let rikResults = [];
+let rikCurrentSession = null;
+let rikWS = null;
+let rikIntervalCmd = null;
 
-  // 4-dice patterns (16 variants)
-  "TTTT": { prediction: "Tài", confidence: 97 },
-  "TTTX": { prediction: "Xỉu", confidence: 85 },
-  "TTXT": { prediction: "Tài", confidence: 80 },
-  "TTXX": { prediction: "Xỉu", confidence: 85 },
-  "TXTT": { prediction: "Tài", confidence: 75 },
-  "TXTX": { prediction: "Xỉu", confidence: 80 },
-  "TXXT": { prediction: "Tài", confidence: 70 },
-  "TXXX": { prediction: "Xỉu", confidence: 90 },
-  "XTTT": { prediction: "Tài", confidence: 75 },
-  "XTTX": { prediction: "Xỉu", confidence: 70 },
-  "XTXT": { prediction: "Tài", confidence: 65 },
-  "XTXX": { prediction: "Xỉu", confidence: 85 },
-  "XXTT": { prediction: "Tài", confidence: 60 },
-  "XXTX": { prediction: "Xỉu", confidence: 75 },
-  "XXXT": { prediction: "Tài", confidence: 55 },
-  "XXXX": { prediction: "Xỉu", confidence: 95 },
-
-  // 5-dice patterns (32 variants) - Optimized confidence scaling
-  "TTTTT": { prediction: "Tài", confidence: 98 },
-  "TTTTX": { prediction: "Tài", confidence: 88 },
-  "TTTXT": { prediction: "Tài", confidence: 83 },
-  "TTTXX": { prediction: "Xỉu", confidence: 82 },
-  "TTXTT": { prediction: "Tài", confidence: 78 },
-  "TTXTX": { prediction: "Xỉu", confidence: 77 },
-  "TTXXT": { prediction: "Tài", confidence: 72 },
-  "TTXXX": { prediction: "Xỉu", confidence: 88 },
-  "TXTTT": { prediction: "Tài", confidence: 77 },
-  "TXTTX": { prediction: "Xỉu", confidence: 76 },
-  "TXTXT": { prediction: "Tài", confidence: 71 },
-  "TXTXX": { prediction: "Xỉu", confidence: 83 },
-  "TXXTT": { prediction: "Tài", confidence: 68 },
-  "TXXTX": { prediction: "Xỉu", confidence: 73 },
-  "TXXXT": { prediction: "Tài", confidence: 63 },
-  "TXXXX": { prediction: "Xỉu", confidence: 93 },
-  "XTTTT": { prediction: "Tài", confidence: 73 },
-  "XTTTX": { prediction: "Xỉu", confidence: 77 },
-  "XTTXT": { prediction: "Tài", confidence: 67 },
-  "XTTXX": { prediction: "Xỉu", confidence: 82 },
-  "XTXTT": { prediction: "Tài", confidence: 63 },
-  "XTXTX": { prediction: "Xỉu", confidence: 72 },
-  "XTXXT": { prediction: "Tài", confidence: 58 },
-  "XTXXX": { prediction: "Xỉu", confidence: 88 },
-  "XXTTT": { prediction: "Tài", confidence: 67 },
-  "XXTTX": { prediction: "Xỉu", confidence: 62 },
-  "XXTXT": { prediction: "Tài", confidence: 62 },
-  "XXTXX": { prediction: "Xỉu", confidence: 82 },
-  "XXXTT": { prediction: "Tài", confidence: 58 },
-  "XXXTX": { prediction: "Xỉu", confidence: 68 },
-  "XXXXT": { prediction: "Tài", confidence: 53 },
-  "XXXXX": { prediction: "Xỉu", confidence: 98 },
-
-  // 6-dice patterns (64 variants) - Premium prediction engine
-  "TTTTTT": { prediction: "Tài", confidence: 99 },
-  "TTTTTX": { prediction: "Tài", confidence: 92 },
-  "TTTTXT": { prediction: "Tài", confidence: 87 },
-  "TTTTXX": { prediction: "Xỉu", confidence: 85 },
-  "TTTXTT": { prediction: "Tài", confidence: 84 },
-  "TTTXTX": { prediction: "Xỉu", confidence: 79 },
-  "TTTXXT": { prediction: "Tài", confidence: 77 },
-  "TTTXXX": { prediction: "Xỉu", confidence: 93 },
-  "TTXTTT": { prediction: "Tài", confidence: 79 },
-  "TTXTTX": { prediction: "Xỉu", confidence: 82 },
-  "TTXTXT": { prediction: "Tài", confidence: 77 },
-  "TTXTXX": { prediction: "Xỉu", confidence: 84 },
-  "TTXXTT": { prediction: "Tài", confidence: 73 },
-  "TTXXTX": { prediction: "Xỉu", confidence: 78 },
-  "TTXXXT": { prediction: "Tài", confidence: 68 },
-  "TTXXXX": { prediction: "Xỉu", confidence: 95 },
-  "TXTTTT": { prediction: "Tài", confidence: 78 },
-  "TXTTTX": { prediction: "Xỉu", confidence: 79 },
-  "TXTTXT": { prediction: "Tài", confidence: 73 },
-  "TXTTXX": { prediction: "Xỉu", confidence: 83 },
-  "TXTXTT": { prediction: "Tài", confidence: 68 },
-  "TXTXTX": { prediction: "Xỉu", confidence: 77 },
-  "TXTXXT": { prediction: "Tài", confidence: 67 },
-  "TXTXXX": { prediction: "Xỉu", confidence: 91 },
-  "TXXTTT": { prediction: "Tài", confidence: 73 },
-  "TXXTTX": { prediction: "Xỉu", confidence: 77 },
-  "TXXTXT": { prediction: "Tài", confidence: 67 },
-  "TXXTXX": { prediction: "Xỉu", confidence: 83 },
-  "TXXXTT": { prediction: "Tài", confidence: 67 },
-  "TXXXTX": { prediction: "Xỉu", confidence: 73 },
-  "TXXXXT": { prediction: "Tài", confidence: 63 },
-  "TXXXXX": { prediction: "Xỉu", confidence: 97 },
-  "XTTTTT": { prediction: "Tài", confidence: 77 },
-  "XTTTTX": { prediction: "Xỉu", confidence: 82 },
-  "XTTTXT": { prediction: "Tài", confidence: 72 },
-  "XTTTXX": { prediction: "Xỉu", confidence: 83 },
-  "XTTXTT": { prediction: "Tài", confidence: 67 },
-  "XTTXTX": { prediction: "Xỉu", confidence: 77 },
-  "XTTXXT": { prediction: "Tài", confidence: 67 },
-  "XTTXXX": { prediction: "Xỉu", confidence: 91 },
-  "XTXTTT": { prediction: "Tài", confidence: 72 },
-  "XTXTTX": { prediction: "Xỉu", confidence: 77 },
-  "XTXTXT": { prediction: "Tài", confidence: 67 },
-  "XTXTXX": { prediction: "Xỉu", confidence: 83 },
-  "XTXXTT": { prediction: "Tài", confidence: 67 },
-  "XTXXTX": { prediction: "Xỉu", confidence: 73 },
-  "XTXXXT": { prediction: "Tài", confidence: 63 },
-  "XTXXXX": { prediction: "Xỉu", confidence: 95 },
-  "XXTTTT": { prediction: "Tài", confidence: 72 },
-  "XXTTTX": { prediction: "Xỉu", confidence: 77 },
-  "XXTTXT": { prediction: "Tài", confidence: 67 },
-  "XXTTXX": { prediction: "Xỉu", confidence: 82 },
-  "XXTXTX": { prediction: "Xỉu", confidence: 77 },
-  "XXTXXT": { prediction: "Tài", confidence: 67 },
-  "XXTXXX": { prediction: "Xỉu", confidence: 89 },
-  "XXXTTT": { prediction: "Tài", confidence: 67 },
-  "XXXTTX": { prediction: "Xỉu", confidence: 72 },
-  "XXXTXT": { prediction: "Tài", confidence: 67 },
-  "XXXTXX": { prediction: "Xỉu", confidence: 81 },
-  "XXXXTT": { prediction: "Tài", confidence: 63 },
-  "XXXXTX": { prediction: "Xỉu", confidence: 68 },
-  "XXXXXT": { prediction: "Tài", confidence: 58 },
-  "XXXXXX": { prediction: "Xỉu", confidence: 99 },
-
-  // 7-dice patterns (128 variants) - VIP prediction system
-  "TTTTTTT": { prediction: "Tài", confidence: 99 },
-  "TTTTTTX": { prediction: "Tài", confidence: 94 },
-  "TTTTTXT": { prediction: "Tài", confidence: 89 },
-  "TTTTTXX": { prediction: "Xỉu", confidence: 87 },
-  "TTTTXTT": { prediction: "Tài", confidence: 86 },
-  "TTTTXTX": { prediction: "Xỉu", confidence: 81 },
-  "TTTTXXT": { prediction: "Tài", confidence: 79 },
-  "TTTTXXX": { prediction: "Xỉu", confidence: 95 },
-  "TTTXTTT": { prediction: "Tài", confidence: 81 },
-  "TTTXTTX": { prediction: "Xỉu", confidence: 84 },
-  "TTTXTXT": { prediction: "Tài", confidence: 79 },
-  "TTTXTXX": { prediction: "Xỉu", confidence: 86 },
-  "TTTXXTT": { prediction: "Tài", confidence: 75 },
-  "TTTXXTX": { prediction: "Xỉu", confidence: 80 },
-  "TTTXXXT": { prediction: "Tài", confidence: 70 },
-  "TTTXXXX": { prediction: "Xỉu", confidence: 97 },
-  "TTXTTTT": { prediction: "Tài", confidence: 80 },
-  "TTXTTTX": { prediction: "Xỉu", confidence: 83 },
-  "TTXTTXT": { prediction: "Tài", confidence: 75 },
-  "TTXTTXX": { prediction: "Xỉu", confidence: 85 },
-  "TTXTXTT": { prediction: "Tài", confidence: 70 },
-  "TTXTXTX": { prediction: "Xỉu", confidence: 79 },
-  "TTXTXXT": { prediction: "Tài", confidence: 69 },
-  "TTXTXXX": { prediction: "Xỉu", confidence: 93 },
-  "TTXXTTT": { prediction: "Tài", confidence: 75 },
-  "TTXXTTX": { prediction: "Xỉu", confidence: 79 },
-  "TTXXTXT": { prediction: "Tài", confidence: 69 },
-  "TTXXTXX": { prediction: "Xỉu", confidence: 85 },
-  "TTXXXTT": { prediction: "Tài", confidence: 69 },
-  "TTXXXTX": { prediction: "Xỉu", confidence: 75 },
-  "TTXXXXT": { prediction: "Tài", confidence: 65 },
-  "TTXXXXX": { prediction: "Xỉu", confidence: 98 },
-  "TXTTTTT": { prediction: "Tài", confidence: 79 },
-  "TXTTTTX": { prediction: "Xỉu", confidence: 83 },
-  "TXTTTXT": { prediction: "Tài", confidence: 75 },
-  "TXTTTXX": { prediction: "Xỉu", confidence: 85 },
-  "TXTTXTT": { prediction: "Tài", confidence: 69 },
-  "TXTTXTX": { prediction: "Xỉu", confidence: 79 },
-  "TXTTXXT": { prediction: "Tài", confidence: 69 },
-  "TXTTXXX": { prediction: "Xỉu", confidence: 93 },
-  "TXTXTTT": { prediction: "Tài", confidence: 74 },
-  "TXTXTTX": { prediction: "Xỉu", confidence: 79 },
-  "TXTXTXT": { prediction: "Tài", confidence: 69 },
-  "TXTXTXX": { prediction: "Xỉu", confidence: 85 },
-  "TXTXXTT": { prediction: "Tài", confidence: 69 },
-  "TXTXXTX": { prediction: "Xỉu", confidence: 75 },
-  "TXTXXXT": { prediction: "Tài", confidence: 65 },
-  "TXTXXXX": { prediction: "Xỉu", confidence: 97 },
-  "TXXTTTT": { prediction: "Tài", confidence: 74 },
-  "TXXTTTX": { prediction: "Xỉu", confidence: 79 },
-  "TXXTTXT": { prediction: "Tài", confidence: 69 },
-  "TXXTTXX": { prediction: "Xỉu", confidence: 84 },
-  "TXXTXTX": { prediction: "Xỉu", confidence: 79 },
-  "TXXTXXT": { prediction: "Tài", confidence: 69 },
-  "TXXTXXX": { prediction: "Xỉu", confidence: 91 },
-  "TXXXTTT": { prediction: "Tài", confidence: 69 },
-  "TXXXTTX": { prediction: "Xỉu", confidence: 74 },
-  "TXXXTXT": { prediction: "Tài", confidence: 69 },
-  "TXXXTXX": { prediction: "Xỉu", confidence: 83 },
-  "TXXXXTT": { prediction: "Tài", confidence: 65 },
-  "TXXXXTX": { prediction: "Xỉu", confidence: 70 },
-  "TXXXXXT": { prediction: "Tài", confidence: 60 },
-  "TXXXXXX": { prediction: "Xỉu", confidence: 99 },
-  "XTTTTTT": { prediction: "Tài", confidence: 79 },
-  "XTTTTTX": { prediction: "Xỉu", confidence: 84 },
-  "XTTTTXT": { prediction: "Tài", confidence: 75 },
-  "XTTTTXX": { prediction: "Xỉu", confidence: 85 },
-  "XTTTXTT": { prediction: "Tài", confidence: 69 },
-  "XTTTXTX": { prediction: "Xỉu", confidence: 79 },
-  "XTTTXXT": { prediction: "Tài", confidence: 69 },
-  "XTTTXXX": { prediction: "Xỉu", confidence: 93 },
-  "XTTXTTT": { prediction: "Tài", confidence: 74 },
-  "XTTXTTX": { prediction: "Xỉu", confidence: 79 },
-  "XTTXTXT": { prediction: "Tài", confidence: 69 },
-  "XTTXTXX": { prediction: "Xỉu", confidence: 85 },
-  "XTTXXTT": { prediction: "Tài", confidence: 69 },
-  "XTTXXTX": { prediction: "Xỉu", confidence: 75 },
-  "XTTXXXT": { prediction: "Tài", confidence: 65 },
-  "XTTXXXX": { prediction: "Xỉu", confidence: 97 },
-  "XTXTTTT": { prediction: "Tài", confidence: 74 },
-  "XTXTTTX": { prediction: "Xỉu", confidence: 79 },
-  "XTXTTXT": { prediction: "Tài", confidence: 69 },
-  "XTXTTXX": { prediction: "Xỉu", confidence: 84 },
-  "XTXTXTT": { prediction: "Tài", confidence: 69 },
-  "XTXTXTX": { prediction: "Xỉu", confidence: 74 },
-  "XTXTXXT": { prediction: "Tài", confidence: 64 },
-  "XTXTXXX": { prediction: "Xỉu", confidence: 91 },
-  "XTXXTTT": { prediction: "Tài", confidence: 69 },
-  "XTXXTTX": { prediction: "Xỉu", confidence: 74 },
-  "XTXXTXT": { prediction: "Tài", confidence: 69 },
-  "XTXXTXX": { prediction: "Xỉu", confidence: 83 },
-  "XTXXXTT": { prediction: "Tài", confidence: 65 },
-  "XTXXXTX": { prediction: "Xỉu", confidence: 70 },
-  "XTXXXXT": { prediction: "Tài", confidence: 60 },
-  "XTXXXXX": { prediction: "Xỉu", confidence: 99 },
-  "XXTTTTT": { prediction: "Tài", confidence: 74 },
-  "XXTTTTX": { prediction: "Xỉu", confidence: 79 },
-  "XXTTTXT": { prediction: "Tài", confidence: 69 },
-  "XXTTTXX": { prediction: "Xỉu", confidence: 84 },
-  "XXTTXTT": { prediction: "Tài", confidence: 69 },
-  "XXTTXTX": { prediction: "Xỉu", confidence: 74 },
-  "XXTTXXT": { prediction: "Tài", confidence: 64 },
-  "XXTTXXX": { prediction: "Xỉu", confidence: 91 },
-  "XXTXTXT": { prediction: "Tài", confidence: 69 },
-  "XXTXTXX": { prediction: "Xỉu", confidence: 79 },
-  "XXTXXTT": { prediction: "Tài", confidence: 69 },
-  "XXTXXTX": { prediction: "Xỉu", confidence: 74 },
-  "XXTXXXT": { prediction: "Tài", confidence: 64 },
-  "XXTXXXX": { prediction: "Xỉu", confidence: 95 },
-  "XXXTTTT": { prediction: "Tài", confidence: 69 },
-  "XXXTTTX": { prediction: "Xỉu", confidence: 74 },
-  "XXXTTXT": { prediction: "Tài", confidence: 69 },
-  "XXXTTXX": { prediction: "Xỉu", confidence: 79 },
-  "XXXTXTX": { prediction: "Xỉu", confidence: 74 },
-  "XXXTXXT": { prediction: "Tài", confidence: 69 },
-  "XXXTXXX": { prediction: "Xỉu", confidence: 87 },
-  "XXXXTTT": { prediction: "Tài", confidence: 69 },
-  "XXXXTTX": { prediction: "Xỉu", confidence: 69 },
-  "XXXXTXT": { prediction: "Tài", confidence: 64 },
-  "XXXXTXX": { prediction: "Xỉu", confidence: 75 },
-  "XXXXXTT": { prediction: "Tài", confidence: 65 },
-  "XXXXXTX": { prediction: "Xỉu", confidence: 70 },
-  "XXXXXXT": { prediction: "Tài", confidence: 60 },
-  "XXXXXXX": { prediction: "Xỉu", confidence: 99 },
-
-  // 8-dice patterns (256 variants) - Ultra VIP system
-  "TTTTTTTT": { prediction: "Tài", confidence: 86 },
-  "TTTTTTTX": { prediction: "Tài", confidence: 96 },
-  "TTTTTTXT": { prediction: "Tài", confidence: 91 },
-  "TTTTTTXX": { prediction: "Xỉu", confidence: 89 },
-  "TTTTTXXX": { prediction: "Xỉu", confidence: 97 },
-  "TTTTXXXX": { prediction: "Xỉu", confidence: 98 },
-  "TTTXXXXX": { prediction: "Xỉu", confidence: 99 },
-  "TTXXXXXX": { prediction: "Xỉu", confidence: 91 },
-  "TXXXXXXX": { prediction: "Xỉu", confidence: 99.7 },
-  "XXXXXXXX": { prediction: "Xỉu", confidence: 91 },
-  "XXXXXXTT": { prediction: "Tài", confidence: 72 },
-  "XXXXXTTT": { prediction: "Tài", confidence: 77 },
-  "XXXXTTTT": { prediction: "Tài", confidence: 82 },
-  "XXXTTTTT": { prediction: "Tài", confidence: 87 },
-  "XXTTTTTT": { prediction: "Tài", confidence: 92 },
-  "XTTTTTTT": { prediction: "Tài", confidence: 96 }
+// Thuật toán pattern dự đoán
+const PATTERN_MAP = {
+  const predictionMap = {
+  "TXT": "Xỉu", 
+  "TTXX": "Tài", 
+  "XXTXX": "Tài", 
+  "TTX": "Xỉu", 
+  "XTT": "Tài",
+  "TXX": "Tài", 
+  "XTX": "Xỉu", 
+  "TXTX": "Tài", 
+  "XTXX": "Tài", 
+  "XXTX": "Tài",
+  "TXTT": "Xỉu", 
+  "TTT": "Tài", 
+  "XXX": "Tài", 
+  "TXXT": "Tài", 
+  "XTXT": "Xỉu",
+  "TXXT": "Tài", 
+  "XXTT": "Tài", 
+  "TTXX": "Xỉu", 
+  "XTTX": "Tài", 
+  "XTXTX": "Tài",
+  "TTXXX": "Tài", 
+  "XTTXT": "Tài", 
+  "XXTXT": "Xỉu", 
+  "TXTTX": "Tài", 
+  "XTXXT": "Tài",
+  "TTTXX": "Xỉu", 
+  "XXTTT": "Tài", 
+  "XTXTT": "Tài", 
+  "TXTXT": "Tài", 
+  "TTXTX": "Xỉu",
+  "TXTTT": "Xỉu", 
+  "XXTXTX": "Tài", 
+  "XTXXTX": "Tài", 
+  "TXTTTX": "Tài", 
+  "TTTTXX": "Xỉu",
+  "XTXTTX": "Tài", 
+  "XTXXTT": "Tài", 
+  "TXXTXX": "Tài", 
+  "XXTXXT": "Tài", 
+  "TXTTXX": "Xỉu",
+  "TTTXTX": "Xỉu", 
+  "TTXTTT": "Tài", 
+  "TXXTTX": "Tài", 
+  "XXTTTX": "Tài", 
+  "XTTTTX": "Xỉu",
+  "TXTXTT": "Tài", 
+  "TXTXTX": "Tài", 
+  "TTTTX": "Tài", 
+  "XXXTX": "Tài", 
+  "TXTTTX": "Xỉu",
+  "XTXXXT": "Tài", 
+  "XXTTXX": "Tài", 
+  "TTTXXT": "Xỉu", 
+  "XXTXXX": "Tài", 
+  "XTXTXT": "Tài",
+  "TTXXTX": "Tài", 
+  "TTXXT": "Tài", 
+  "TXXTX": "Xỉu", 
+  "XTXXX": "Tài", 
+  "XTXTX": "Xỉu",
+  "TTXT": "Xỉu", 
+  "TTTXT": "Xỉu",
+  "TTTT": "Tài",
+  "TTTTT": "Tài",
+  "TTTTTT": "Xỉu",
+  "TTTTTTT": "Tài",
+  "TTTTTTX": "Xỉu",
+  "TTTTTX": "Xỉu",
+  "TTTTTXT": "Xỉu",
+  "TTTTTXX": "Tài",
+  "TTTTXT": "Xỉu",
+  "TTTTXTT": "Tài",
+  "TTTTXTX": "Xỉu",
+  "TTTTXXT": "Xỉu",
+  "TTTTXXX": "Tài",
+  "TTTX": "Xỉu",
+  "TTTXTT": "Tài",
+  "TTTXTTT": "Xỉu",
+  "TTTXTTX": "Xỉu",
+  "TTTXTXT": "Tài",
+  "TTTXTXX": "Tài",
+  "TTTXXTT": "Tài",
+  "TTTXXTX": "Tài",
+  "TTTXXX": "Xỉu",
+  "TTTXXXT": "Tài",
+  "TTTXXXX": "Xỉu",
+  "TTXTT": "Xỉu",
+  "TTXTTTT": "Xỉu",
+  "TTXTTTX": "Xỉu",
+  "TTXTTX": "Tài",
+  "TTXTTXT": "Tài",
+  "TTXTTXX": "Xỉu",
+  "TTXTXT": "Xỉu",
+  "TTXTXTT": "Tài",
+  "TTXTXTX": "Tài",
+  "TTXTXX": "Xỉu",
+  "TTXTXXT": "Tài",
+  "TTXTXXX": "Xỉu",
+  "TTXXTT": "Tài",
+  "TTXXTTT": "Xỉu",
+  "TTXXTTX": "Tài",
+  "TTXXTXT": "Tài",
+  "TTXXTXX": "Xỉu",
+  "TTXXXT": "Xỉu",
+  "TTXXXTT": "Tài",
+  "TTXXXTX": "Tài",
+  "TTXXXX": "Xỉu",
+  "TTXXXXT": "Tài",
+  "TTXXXXX": "Xỉu",
+  "TXTTTT": "Xỉu",
+  "TXTTTTT": "Xỉu",
+  "TXTTTTX": "Xỉu",
+  "TXTTTXT": "Xỉu",
+  "TXTTTXX": "Tài",
+  "TXTTXT": "Tài",
+  "TXTTXTT": "Tài",
+  "TXTTXTX": "Tài",
+  "TXTTXXT": "Tài",
+  "TXTTXXX": "Tài",
+  "TXTXTTT": "Tài",
+  "TXTXTTX": "Tài",
+  "TXTXTXT": "Xỉu",
+  "TXTXTXX": "Tài",
+  "TXTXX": "Tài",
+  "TXTXXT": "Tài",
+  "TXTXXTT": "Tài",
+  "TXTXXTX": "Xỉu",
+  "TXTXXX": "Xỉu",
+  "TXTXXXT": "Xỉu",
+  "TXTXXXX": "Xỉu",
+  "TXXTT": "Tài",
+  "TXXTTT": "Tài",
+  "TXXTTTT": "Tài",
+  "TXXTTTX": "Tài",
+  "TXXTTXT": "Xỉu",
+  "TXXTTXX": "Xỉu",
+  "TXXTXT": "Tài",
+  "TXXTXTT": "Tài",
+  "TXXTXTX": "Tài",
+  "TXXTXXT": "Tài",
+  "TXXTXXX": "Xỉu",
+  "TXXX": "Tài",
+  "TXXXT": "Tài",
+  "TXXXTT": "Xỉu",
+  "TXXXTTT": "Tài",
+  "TXXXTTX": "Xỉu",
+  "TXXXTX": "Xỉu",
+  "TXXXTXT": "Tài",
+  "TXXXTXX": "Xỉu",
+  "TXXXX": "Xỉu",
+  "TXXXXT": "Tài",
+  "TXXXXTT": "Xỉu",
+  "TXXXXTX": "Xỉu",
+  "TXXXXX": "Tài",
+  "TXXXXXT": "Xỉu",
+  "TXXXXXX": "Xỉu",
+  "XTTT": "Xỉu",
+  "XTTTT": "Xỉu",
+  "XTTTTT": "Tài",
+  "XTTTTTT": "Tài",
+  "XTTTTTX": "Tài",
+  "XTTTTXT": "Tài",
+  "XTTTTXX": "Xỉu",
+  "XTTTX": "Tài",
+  "XTTTXT": "Xỉu",
+  "XTTTXTT": "Tài",
+  "XTTTXTX": "Xỉu",
+  "XTTTXX": "Tài",
+  "XTTTXXT": "Tài",
+  "XTTTXXX": "Tài",
+  "XTTXTT": "Tài",
+  "XTTXTTT": "Tài",
+  "XTTXTTX": "Tài",
+  "XTTXTX": "Xỉu",
+  "XTTXTXT": "Tài",
+  "XTTXTXX": "Xỉu",
+  "XTTXX": "Xỉu",
+  "XTTXXT": "Xỉu",
+  "XTTXXTT": "Tài",
+  "XTTXXTX": "Xỉu",
+  "XTTXXX": "Tài",
+  "XTTXXXT": "Xỉu",
+  "XTTXXXX": "Tài",
+  "XTXTTT": "Tài",
+  "XTXTTTT": "Tài",
+  "XTXTTTX": "Xỉu",
+  "XTXTTXT": "Xỉu",
+  "XTXTTXX": "Tài",
+  "XTXTXTT": "Tài",
+  "XTXTXTX": "Xỉu",
+  "XTXTXX": "Tài",
+  "XTXTXXT": "Tài",
+  "XTXTXXX": "Tài",
+  "XTXXTTT": "Tài",
+  "XTXXTTX": "Xỉu",
+  "XTXXTXT": "Tài",
+  "XTXXTXX": "Tài",
+  "XTXXXTT": "Xỉu",
+  "XTXXXTX": "Tài",
+  "XTXXXX": "Xỉu",
+  "XTXXXXT": "Tài",
+  "XTXXXXX": "Tài",
+  "XXT": "Xỉu",
+  "XXTTTT": "Tài",
+  "XXTTTTT": "Xỉu",
+  "XXTTTTX": "Tài",
+  "XXTTTXT": "Xỉu",
+  "XXTTTXX": "Xỉu",
+  "XXTTX": "Tài",
+  "XXTTXT": "Xỉu",
+  "XXTTXTT": "Xỉu",
+  "XXTTXTX": "Tài",
+  "XXTTXXT": "Xỉu",
+  "XXTTXXX": "Tài",
+  "XXTXTT": "Tài",
+  "XXTXTTT": "Tài",
+  "XXTXTTX": "Xỉu",
+  "XXTXTXT": "Tài",
+  "XXTXTXX": "Tài",
+  "XXTXXTT": "Xỉu",
+  "XXTXXTX": "Xỉu",
+  "XXTXXXT": "Tài",
+  "XXTXXXX": "Tài",
+  "XXXT": "Tài",
+  "XXXTT": "Xỉu",
+  "XXXTTT": "Xỉu",
+  "XXXTTTT": "Xỉu",
+  "XXXTTTX": "Xỉu",
+  "XXXTTX": "Tài",
+  "XXXTTXT": "Xỉu",
+  "XXXTTXX": "Xỉu",
+  "XXXTXT": "Tài",
+  "XXXTXTT": "Tài",
+  "XXXTXTX": "Xỉu",
+  "XXXTXX": "Tài",
+  "XXXTXXT": "Xỉu",
+  "XXXTXXX": "Tài",
+  "XXXX": "Tài",
+  "XXXXT": "Xỉu",
+  "XXXXTT": "Xỉu",
+  "XXXXTTT": "Tài",
+  "XXXXTTX": "Tài",
+  "XXXXTX": "Tài",
+  "XXXXTXT": "Tài",
+  "XXXXTXX": "Tài",
+  "XXXXX": "Tài",
+  "XXXXXT": "Xỉu",
+  "XXXXXTT": "Tài",
+  "XXXXXTX": "Tài",
+  "XXXXXX": "Tài",
+  "XXXXXXT": "Tài",
+  "XXXXXXX": "Tài"
 };
 
-// Health monitoring
-function startHealthMonitor() {
-  setInterval(() => {
-    const now = Date.now();
-    const inactiveDuration = now - lastActivity;
-    
-    if (inactiveDuration > HEALTH_CHECK_INTERVAL * 2) {
-      console.log(`[Health] No activity for ${Math.floor(inactiveDuration/1000)}s - Reconnecting...`);
-      connectWebSocket();
-    }
-    
-    // Log memory usage
-    const memoryUsage = process.memoryUsage();
-    console.log(`[Health] Memory: ${Math.round(memoryUsage.heapUsed / 1024 / 1024)}MB used, ${Math.round(memoryUsage.heapTotal / 1024 / 1024)}MB total`);
-    
-    // Prevent memory leaks
-    if (history.length > HISTORY_MAX_LENGTH * 1.2) {
-      console.log(`[Health] Trimming history from ${history.length} to ${HISTORY_MAX_LENGTH}`);
-      history = history.slice(-HISTORY_MAX_LENGTH);
-    }
-  }, HEALTH_CHECK_INTERVAL);
+function getDuDoanFromPattern(pattern) {
+  const keys = Object.keys(PATTERN_MAP).sort((a, b) => b.length - a.length);
+  for (const key of keys) {
+    if (pattern.endsWith(key)) return PATTERN_MAP[key];
+  }
+  return "?";
 }
 
-// WebSocket connection with robust error handling
-function connectWebSocket() {
-  if (isShuttingDown) return;
-  
-  console.log('[WebSocket] Connecting to server...');
-  
-  // Close existing connection if any
-  if (wsClient) {
-    try {
-      wsClient.removeAllListeners();
-      if (wsClient.readyState === WebSocket.OPEN) {
-        wsClient.close();
-      }
-    } catch (e) {
-      console.error('[WebSocket] Error cleaning up previous connection:', e);
-    }
-  }
-
-  wsClient = new WebSocket(WS_URL, {
-    handshakeTimeout: 10000, // 10 seconds timeout
-    maxPayload: 1048576, // 1MB max payload
-  });
-  
-  wsClient.on('open', () => {
-    console.log('[WebSocket] ✅ Connection established');
-    lastActivity = Date.now();
-    
-    // Send initial ping to keep connection alive
-    setInterval(() => {
-      if (wsClient && wsClient.readyState === WebSocket.OPEN) {
-        try {
-          wsClient.ping();
-        } catch (e) {
-          console.error('[WebSocket] Ping error:', e);
-        }
-      }
-    }, 45000); // Ping every 45 seconds
-  });
-  
-  wsClient.on('message', (data) => {
-    try {
-      lastActivity = Date.now();
-      const result = JSON.parse(data.toString());
-      
-      if (result.Phien && result.Ket_qua && result.Xuc_xac_1 !== undefined) {
-        console.log(`[WebSocket] Received result - Session ${result.Phien}: ${result.Ket_qua}`);
-        
-        const historyEntry = {
-          phien: result.Phien,
-          result: result.Ket_qua,
-          sum: result.Tong,
-          xucxac: [result.Xuc_xac_1, result.Xuc_xac_2, result.Xuc_xac_3],
-        };
-        
-        // Prevent duplicates and limit history size
-        if (!history.some(h => h.phien === result.Phien)) {
-          history.push(historyEntry);
-          if (history.length > HISTORY_MAX_LENGTH) {
-            history = history.slice(-HISTORY_MAX_LENGTH);
-          }
-        }
-        currentSession = historyEntry;
-      }
-    } catch (error) {
-      console.error('[WebSocket] Message processing error:', error);
-    }
-  });
-  
-  wsClient.on('close', (code, reason) => {
-    console.log(`[WebSocket] ❌ Connection closed (Code: ${code}, Reason: ${reason || 'none'})`);
-    if (!isShuttingDown) {
-      console.log(`[WebSocket] Reconnecting in ${RECONNECT_DELAY/1000} seconds...`);
-      setTimeout(connectWebSocket, RECONNECT_DELAY);
-    }
-  });
-  
-  wsClient.on('error', (err) => {
-    console.error('[WebSocket] Error:', err);
-    // Error event is usually followed by close event, which will trigger reconnect
-  });
-  
-  wsClient.on('ping', () => {
-    lastActivity = Date.now();
-  });
-  
-  wsClient.on('pong', () => {
-    lastActivity = Date.now();
-  });
+function getTX(d1, d2, d3) {
+  const sum = d1 + d2 + d3;
+  return sum >= 11 ? "T" : "X";
 }
 
-// Prediction functions (unchanged from your original)
-function getPredictionOutput() {
-  if (!currentSession) {
-    return {
-      phien_hien_tai: "...",
-      du_doan: "...",
-      do_tin_cay: "..."
-    };
+function sendRikCmd1005() {
+  if (rikWS && rikWS.readyState === WebSocket.OPEN) {
+    const payload = [6, "MiniGame", "taixiuPlugin", { cmd: 1005 }];
+    rikWS.send(JSON.stringify(payload));
   }
-
-  let prediction = { prediction: "...", confidence: "..." };
-  if (history.length >= 3) {
-    const lastThree = history.slice(-3).map(h => h.result === "Tài" ? "T" : "X").join("");
-    prediction = patternPredictions[lastThree] || {
-      prediction: history[history.length-1].result === "Tài" ? "Xỉu" : "Tài",
-      confidence: 50
-    };
-  }
-
-  return {
-    phien_hien_tai: currentSession.phien + 1,
-    du_doan: prediction.prediction,
-    do_tin_cay: prediction.confidence
-  };
 }
 
-function getCompleteData() {
-  if (!currentSession) {
-    return {
-      phien: "...",
-      xuc_xac: [0, 0, 0],
-      ket_qua: "...",
-      tong: 0,
-      pattern: "",
-      algorithm: ""
-    };
-  }
-
-  const patternHistory = history.map(h => h.result === "Tài" ? "T" : "X").join("");
-  
-  return {
-    phien: currentSession.phien,
-    xuc_xac: currentSession.xucxac,
-    ket_qua: currentSession.result.charAt(0),
-    tong: currentSession.sum,
-    pattern: patternHistory,
-    algorithm: patternHistory.slice(-6)
-  };
-}
-
-// Initialize server
-const app = express();
-app.use(cors());
-
-// Middleware to prevent requests during shutdown
-app.use((req, res, next) => {
-  if (isShuttingDown) {
-    res.status(503).json({ error: 'Server is shutting down' });
-  } else {
-    next();
-  }
-});
-
-// Main endpoint
-app.get('/api/789club', (req, res) => {
+function decodeBinaryMessage(buffer) {
   try {
-    const prediction = getPredictionOutput();
-    const data = getCompleteData();
-    
-    res.json({
-      phien_hien_tai: prediction.phien_hien_tai,
-      du_doan: prediction.du_doan,
-      do_tin_cay: prediction.do_tin_cay,
-      data: data,
-      status: 'healthy',
-      last_activity: new Date(lastActivity).toISOString(),
-      uptime: process.uptime()
-    });
-  } catch (error) {
-    console.error('[API] Error handling request:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
+    const str = buffer.toString();
+    if (str.startsWith("[")) return JSON.parse(str);
 
-// Health check endpoint for Render
-app.get('/health', (req, res) => {
-  const now = Date.now();
-  const isHealthy = (now - lastActivity) < HEALTH_CHECK_INTERVAL * 2;
-  
-  res.status(isHealthy ? 200 : 503).json({
-    status: isHealthy ? 'healthy' : 'unhealthy',
-    last_activity: new Date(lastActivity).toISOString(),
-    uptime: process.uptime(),
-    memory: process.memoryUsage(),
-    history_length: history.length
-  });
-});
+    let position = 0;
+    const result = [];
 
-// Start server
-const server = http.createServer(app);
-server.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 Server running at http://0.0.0.0:${PORT}`);
-  connectWebSocket();
-  startHealthMonitor();
-});
-
-// Graceful shutdown
-function shutdown() {
-  if (isShuttingDown) return;
-  isShuttingDown = true;
-  
-  console.log('[Shutdown] Starting graceful shutdown...');
-  
-  // Close WebSocket
-  if (wsClient) {
-    try {
-      wsClient.close();
-    } catch (e) {
-      console.error('[Shutdown] Error closing WebSocket:', e);
+    while (position < buffer.length) {
+      const type = buffer.readUInt8(position++);
+      if (type === 1) {
+        const length = buffer.readUInt16BE(position);
+        position += 2;
+        const str = buffer.toString("utf8", position, position + length);
+        position += length;
+        result.push(str);
+      } else if (type === 2) {
+        const num = buffer.readInt32BE(position);
+        position += 4;
+        result.push(num);
+      } else if (type === 3 || type === 4) {
+        const length = buffer.readUInt16BE(position);
+        position += 2;
+        const jsonStr = buffer.toString("utf8", position, position + length);
+        position += length;
+        result.push(JSON.parse(jsonStr));
+      } else {
+        console.warn("Unknown type:", type);
+        break;
+      }
     }
+
+    return result.length === 1 ? result[0] : result;
+  } catch (e) {
+    console.error("Decode error:", e);
+    return null;
   }
-  
-  // Close HTTP server
-  server.close(() => {
-    console.log('[Shutdown] HTTP server closed');
-    process.exit(0);
-  });
-  
-  // Force exit after timeout
-  setTimeout(() => {
-    console.error('[Shutdown] Force shutdown after timeout');
-    process.exit(1);
-  }, 10000);
 }
 
-process.on('SIGTERM', shutdown);
-process.on('SIGINT', shutdown);
+function connectRikWebSocket() {
+  console.log("🔌 Connecting to SunWin WebSocket...");
+  rikWS = new WebSocket(`wss://websocket.azhkthg1.net/websocket?token=${TOKEN}`);
+
+  rikWS.on("open", () => {
+    const authPayload = [
+      1,
+      "MiniGame",
+      "SC_nguyenvantinhne",
+      "tinhbip",
+      {
+        "info": "{\"ipAddress\":\"::1\",\"wsToken\":\"" + TOKEN + "\",\"userId\":\"abc\",\"username\":\"SC_nguyenvantinhne\",\"timestamp\":" + Date.now() + "}",
+        "signature": "FAKE_SIGNATURE",
+        "pid": 5,
+        "subi": true
+      }
+    ];
+    rikWS.send(JSON.stringify(authPayload));
+    clearInterval(rikIntervalCmd);
+    rikIntervalCmd = setInterval(sendRikCmd1005, 5000);
+  });
+
+  rikWS.on("message", (data) => {
+    try {
+      const json = typeof data === "string" ? JSON.parse(data) : decodeBinaryMessage(data);
+      if (!json) return;
+
+      // Kết quả mới
+      if (Array.isArray(json) && json[3]?.res?.d1 && json[3]?.res?.sid) {
+        const result = json[3].res;
+        if (!rikCurrentSession || result.sid > rikCurrentSession) {
+          rikCurrentSession = result.sid;
+          rikResults.unshift({
+            sid: result.sid,
+            d1: result.d1,
+            d2: result.d2,
+            d3: result.d3
+          });
+          if (rikResults.length > 50) rikResults.pop();
+          console.log(`📥 Phiên mới ${result.sid} → ${getTX(result.d1, result.d2, result.d3)}`);
+
+          setTimeout(() => {
+            if (rikWS) rikWS.close();
+            connectRikWebSocket();
+          }, 1000);
+        }
+      }
+
+      // Lịch sử
+      else if (Array.isArray(json) && json[1]?.htr) {
+        const history = json[1].htr
+          .map(item => ({ sid: item.sid, d1: item.d1, d2: item.d2, d3: item.d3 }))
+          .sort((a, b) => b.sid - a.sid);
+        rikResults = history.slice(0, 50);
+        console.log("📦 Lấy lịch sử thành công.");
+      }
+
+    } catch (e) {
+      console.error("❌ Parse error:", e.message);
+    }
+  });
+
+  rikWS.on("close", () => {
+    console.log("🔌 WebSocket disconnected. Reconnecting...");
+    setTimeout(connectRikWebSocket, 5000);
+  });
+
+  rikWS.on("error", (err) => {
+    console.error("🔌 WebSocket error:", err.message);
+    rikWS.close();
+  });
+}
+
+// Kết nối ban đầu
+connectRikWebSocket();
+
+// Đăng ký CORS
+fastify.register(cors);
+
+// API lấy dữ liệu
+fastify.get("/", async () => {
+  const validResults = rikResults.filter(item => item.d1 && item.d2 && item.d3);
+  if (validResults.length < 2) return { message: "Không đủ dữ liệu." };
+
+  const prev = validResults[1];
+  const next = validResults[0];
+  const sumPrev = prev.d1 + prev.d2 + prev.d3;
+  const ketQuaPrev = sumPrev >= 11 ? "Tài" : "Xỉu";
+
+  const duongCau = validResults
+    .slice(0, 13)
+    .map(r => (r.d1 + r.d2 + r.d3 >= 11 ? "t" : "x"))
+    .join("");
+
+  const duDoan = getDuDoanFromPattern(duongCau.toUpperCase());
+
+  return {
+    id: "@axobantool",
+    phien_cu: prev.sid,
+    ket_qua: ketQuaPrev,
+    xuc_xac: `${prev.d1},${prev.d2},${prev.d3}`,
+    phien_moi: next.sid,
+    pattern: duongCau,
+    du_doan: duDoan
+  };
+});
+
+// Khởi động server
+const start = async () => {
+  try {
+    const address = await fastify.listen({ port: PORT, host: "0.0.0.0" });
+    console.log(`🚀 Server chạy tại ${address}`);
+  } catch (err) {
+    console.error("❌ Server lỗi:", err);
+    process.exit(1);
+  }
+};
+
+start();
