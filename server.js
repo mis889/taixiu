@@ -14,7 +14,6 @@ let rikIntervalCmd = null;
 
 // Thuật toán pattern dự đoán
 const PATTERN_MAP = {
-  const predictionMap = {
   "TXT": "Xỉu", 
   "TTXX": "Tài", 
   "XXTXX": "Tài", 
