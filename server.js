@@ -12,8 +12,8 @@ let rikCurrentSession = null;
 let rikWS = null;
 let rikIntervalCmd = null;
 
-// Thuật toán pattern dự đoán
 const PATTERN_MAP = {
+ const predictionMap = {
   "TXT": "Xỉu", 
   "TTXX": "Tài", 
   "XXTXX": "Tài", 
@@ -333,15 +333,12 @@ function connectRikWebSocket() {
 
   rikWS.on("open", () => {
     const authPayload = [
-      1,
-      "MiniGame",
-      "SC_nguyenvantinhne",
-      "tinhbip",
+      1, "MiniGame", "SC_nguyenvantinhne", "tinhbip",
       {
-        "info": "{\"ipAddress\":\"2001:ee0:514e:1a90:d1dd:67c5:a601:2e90\",\"wsToken\":\"eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJhbW91bnQiOjAsImdlbmRlciI6MCwiZGlzcGxheU5hbWUiOiJzdW53aW50aGFjaG9lbTEiLCJwaG9uZVZlcmlmaWVkIjpmYWxzZSwiYm90IjowLCJhdmF0YXIiOiJodHRwczovL2ltYWdlcy5zd2luc2hvcC5uZXQvaW1hZ2VzL2F2YXRhci9hdmF0YXJfMTEucG5nIiwidXNlcklkIjoiY2IwYWE5ZmEtZjI0OS00NjA0LWIzNTUtZTAyMDhiMTkyMDljIiwicmVnVGltZSI6MTY5NzAyNDMyMjgyMSwicGhvbmUiOiIiLCJjdXN0b21lcklkIjoxMzAwNTU5MDAsImJyYW5kIjoic3VuLndpbiIsInVzZXJuYW1lIjoiU0Nfbmd1eWVudmFudGluaG5lIiwidGltZXN0YW1wIjoxNzUyODM0MDU5NjE4fQ.Q-d60oNt6RIjw-orYsz8aTYB__3HLLuhSbQw-XVGuAA\",\"userId\":\"cb0aa9fa-f249-4604-b355-e0208b19209c\",\"username\":\"SC_nguyenvantinhne\",\"timestamp\":1752834059619}",
-        "signature": "2DD52993E712B038F47FAEDEE21EA1EB9CC880317280AD713ECFBD2CB67BB25AC2E3B9256799A8FC900D8CDB27FCA2BD595FCA9D3433647C8E6DA4996FE7410513A78F6455DF603B0958D76B228BF94F30C014157B2C8233135C7870254A8EE71B65F6CB948E47710EA0953B74F0C46D889F814F1C24404F5660CC9357A6C859",
-        "pid": 5,
-        "subi": true
+        info: "{\"ipAddress\":\"2001:ee0:514e:1a90:d1dd:67c5:a601:2e90\",\"wsToken\":\"eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJhbW91bnQiOjAsImdlbmRlciI6MCwiZGlzcGxheU5hbWUiOiJzdW53aW50aGFjaG9lbTEiLCJwaG9uZVZlcmlmaWVkIjpmYWxzZSwiYm90IjowLCJhdmF0YXIiOiJodHRwczovL2ltYWdlcy5zd2luc2hvcC5uZXQvaW1hZ2VzL2F2YXRhci9hdmF0YXJfMTEucG5nIiwidXNlcklkIjoiY2IwYWE5ZmEtZjI0OS00NjA0LWIzNTUtZTAyMDhiMTkyMDljIiwicmVnVGltZSI6MTY5NzAyNDMyMjgyMSwicGhvbmUiOiIiLCJjdXN0b21lcklkIjoxMzAwNTU5MDAsImJyYW5kIjoic3VuLndpbiIsInVzZXJuYW1lIjoiU0Nfbmd1eWVudmFudGluaG5lIiwidGltZXN0YW1wIjoxNzUyODM0MDU5NjE4fQ.Q-d60oNt6RIjw-orYsz8aTYB__3HLLuhSbQw-XVGuAA\",\"userId\":\"cb0aa9fa-f249-4604-b355-e0208b19209c\",\"username\":\"SC_nguyenvantinhne\",\"timestamp\":1752834059619}",
+        signature: "2DD52993E712B038F47FAEDEE21EA1EB9CC880317280AD713ECFBD2CB67BB25AC2E3B9256799A8FC900D8CDB27FCA2BD595FCA9D3433647C8E6DA4996FE7410513A78F6455DF603B0958D76B228BF94F30C014157B2C8233135C7870254A8EE71B65F6CB948E47710EA0953B74F0C46D889F814F1C24404F5660CC9357A6C859",
+        pid: 5,
+        subi: true
       }
     ];
     rikWS.send(JSON.stringify(authPayload));
@@ -354,7 +351,6 @@ function connectRikWebSocket() {
       const json = typeof data === "string" ? JSON.parse(data) : decodeBinaryMessage(data);
       if (!json) return;
 
-      // Kết quả mới
       if (Array.isArray(json) && json[3]?.res?.d1 && json[3]?.res?.sid) {
         const result = json[3].res;
         if (!rikCurrentSession || result.sid > rikCurrentSession) {
@@ -367,23 +363,18 @@ function connectRikWebSocket() {
           });
           if (rikResults.length > 50) rikResults.pop();
           console.log(`📥 Phiên mới ${result.sid} → ${getTX(result.d1, result.d2, result.d3)}`);
-
           setTimeout(() => {
             if (rikWS) rikWS.close();
             connectRikWebSocket();
           }, 1000);
         }
-      }
-
-      // Lịch sử
-      else if (Array.isArray(json) && json[1]?.htr) {
+      } else if (Array.isArray(json) && json[1]?.htr) {
         const history = json[1].htr
           .map(item => ({ sid: item.sid, d1: item.d1, d2: item.d2, d3: item.d3 }))
           .sort((a, b) => b.sid - a.sid);
         rikResults = history.slice(0, 50);
         console.log("📦 Lấy lịch sử thành công.");
       }
-
     } catch (e) {
       console.error("❌ Parse error:", e.message);
     }
@@ -406,8 +397,8 @@ connectRikWebSocket();
 // Đăng ký CORS
 fastify.register(cors);
 
-// API lấy dữ liệu
-fastify.get("/", async () => {
+// API chính
+fastify.get("/axobantol", async () => {
   const validResults = rikResults.filter(item => item.d1 && item.d2 && item.d3);
   if (validResults.length < 2) return { message: "Không đủ dữ liệu." };
 
@@ -418,6 +409,7 @@ fastify.get("/", async () => {
 
   const duongCau = validResults
     .slice(0, 13)
+    .reverse() // <-- Đảo ngược để phiên mới nằm bên phải
     .map(r => (r.d1 + r.d2 + r.d3 >= 11 ? "t" : "x"))
     .join("");
 
@@ -434,7 +426,7 @@ fastify.get("/", async () => {
   };
 });
 
-// Khởi động server
+// Start server
 const start = async () => {
   try {
     const address = await fastify.listen({ port: PORT, host: "0.0.0.0" });
