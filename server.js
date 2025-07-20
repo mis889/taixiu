@@ -338,8 +338,8 @@ function connectRikWebSocket() {
       "SC_nguyenvantinhne",
       "tinhbip",
       {
-        "info": "{\"ipAddress\":\"::1\",\"wsToken\":\"" + TOKEN + "\",\"userId\":\"abc\",\"username\":\"SC_nguyenvantinhne\",\"timestamp\":" + Date.now() + "}",
-        "signature": "FAKE_SIGNATURE",
+        "info": "{\"ipAddress\":\"2001:ee0:514e:1a90:d1dd:67c5:a601:2e90\",\"wsToken\":\"eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJhbW91bnQiOjAsImdlbmRlciI6MCwiZGlzcGxheU5hbWUiOiJzdW53aW50aGFjaG9lbTEiLCJwaG9uZVZlcmlmaWVkIjpmYWxzZSwiYm90IjowLCJhdmF0YXIiOiJodHRwczovL2ltYWdlcy5zd2luc2hvcC5uZXQvaW1hZ2VzL2F2YXRhci9hdmF0YXJfMTEucG5nIiwidXNlcklkIjoiY2IwYWE5ZmEtZjI0OS00NjA0LWIzNTUtZTAyMDhiMTkyMDljIiwicmVnVGltZSI6MTY5NzAyNDMyMjgyMSwicGhvbmUiOiIiLCJjdXN0b21lcklkIjoxMzAwNTU5MDAsImJyYW5kIjoic3VuLndpbiIsInVzZXJuYW1lIjoiU0Nfbmd1eWVudmFudGluaG5lIiwidGltZXN0YW1wIjoxNzUyODM0MDU5NjE4fQ.Q-d60oNt6RIjw-orYsz8aTYB__3HLLuhSbQw-XVGuAA\",\"userId\":\"cb0aa9fa-f249-4604-b355-e0208b19209c\",\"username\":\"SC_nguyenvantinhne\",\"timestamp\":1752834059619}",
+        "signature": "2DD52993E712B038F47FAEDEE21EA1EB9CC880317280AD713ECFBD2CB67BB25AC2E3B9256799A8FC900D8CDB27FCA2BD595FCA9D3433647C8E6DA4996FE7410513A78F6455DF603B0958D76B228BF94F30C014157B2C8233135C7870254A8EE71B65F6CB948E47710EA0953B74F0C46D889F814F1C24404F5660CC9357A6C859",
         "pid": 5,
         "subi": true
       }
