@@ -45,9 +45,11 @@ const PATTERN_MAP = {
 function getDuDoanFromPattern(pattern) {
   const keys = Object.keys(PATTERN_MAP).sort((a, b) => b.length - a.length);
   for (const key of keys) {
-    if (pattern.toUpperCase().endsWith(key)) return PATTERN_MAP[key];
+    if (pattern.toUpperCase().endsWith(key)) {
+      return { du_doan: PATTERN_MAP[key], khop_pattern: key };
+    }
   }
-  return "?";
+  return { du_doan: "?", khop_pattern: null };
 }
 
 function connectHitWebSocket() {
@@ -106,7 +108,7 @@ function connectHitWebSocket() {
 connectHitWebSocket();
 fastify.register(cors);
 
-// API tương tự /axobantol
+// API GET
 fastify.get("/api/hit", async () => {
   const validResults = hitResults
     .filter(r => r.d1 && r.d2 && r.d3)
@@ -128,7 +130,7 @@ fastify.get("/api/hit", async () => {
     .reverse()
     .join("");
 
-  const duDoan = getDuDoanFromPattern(pattern.toUpperCase());
+  const { du_doan, khop_pattern } = getDuDoanFromPattern(pattern.toUpperCase());
 
   return {
     id: "@axobantool",
@@ -137,11 +139,12 @@ fastify.get("/api/hit", async () => {
     xuc_xac: xucxac,
     phien_moi: nextPhien,
     pattern: pattern,
-    du_doan: duDoan
+    du_doan: du_doan,
+    khop_pattern: khop_pattern
   };
 });
 
-// Start server
+// Start
 const start = async () => {
   try {
     const address = await fastify.listen({ port: PORT, host: "0.0.0.0" });
@@ -153,4 +156,3 @@ const start = async () => {
 };
 
 start();
-
